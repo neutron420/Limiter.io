@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rate-limiter-consumer
+  namespace: default
+  labels:
+    app: rate-limiter-consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rate-limiter-consumer
+  template:
+    metadata:
+      labels:
+        app: rate-limiter-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: rate-limiter-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["./consumer"]
+          envFrom:
+            - configMapRef:
+                name: rate-limiter-config
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rate-limiter-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rate-limiter-secrets
+                  key: DB_PASSWORD
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"

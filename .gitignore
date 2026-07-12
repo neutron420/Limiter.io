@@ -1,0 +1,55 @@
+# ---- Secrets / environment ----
+# Never commit real secrets. Keep .env.example tracked as the template.
+.env
+.env.*
+!.env.example
+
+# ---- Go build output ----
+/bin/
+/dist/
+/build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+# compiled service binaries
+/api
+/consumer
+cmd/api/api
+cmd/api/main
+cmd/consumer/consumer
+cmd/consumer/main
+
+# ---- Go test / coverage ----
+*.test
+*.out
+coverage.txt
+coverage.html
+profile.cov
+
+# ---- Dependencies ----
+/vendor/
+
+# ---- Logs & runtime ----
+*.log
+*.pid
+tmp/
+temp/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# ---- Frontend subproject ----
+# landing/ has its own .gitignore; ignore its heavy build artifacts here too as a safety net.
+landing/node_modules/
+landing/.next/
+landing/.env*.local
+
+# ---- Docker / local infra ----
+*.local.yml
