@@ -112,7 +112,7 @@ type SubscriptionResponse struct {
 	UserID    uuid.UUID  `json:"user_id"`
 	PlanID    string     `json:"plan_id"`
 	Status    string     `json:"status"`
-	StartsAt  time.Time  `json:"starts_at"`
+	StartsAt  *time.Time `json:"starts_at,omitempty"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 

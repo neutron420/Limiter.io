@@ -41,7 +41,7 @@ func (h *SubscriptionHandler) Get(c *gin.Context) {
 		UserID:    sub.UserID,
 		PlanID:    sub.PlanID,
 		Status:    sub.Status,
-		StartsAt:  sub.StartsAt,
+		StartsAt:  &sub.StartsAt,
 		ExpiresAt: sub.ExpiresAt,
 	})
 }
@@ -70,7 +70,7 @@ func (h *SubscriptionHandler) Upgrade(c *gin.Context) {
 		UserID:    sub.UserID,
 		PlanID:    sub.PlanID,
 		Status:    sub.Status,
-		StartsAt:  sub.StartsAt,
+		StartsAt:  &sub.StartsAt,
 		ExpiresAt: sub.ExpiresAt,
 	})
 }

@@ -17,6 +17,8 @@ RUN pnpm install --frozen-lockfile
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
+ARG NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL
+ENV NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL=$NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL
 RUN npm install -g pnpm
 COPY . .
 COPY --from=deps /app/node_modules ./node_modules

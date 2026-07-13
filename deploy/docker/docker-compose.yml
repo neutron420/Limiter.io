@@ -105,6 +105,8 @@ services:
     build:
       context: ../../landing
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL=https://limiter.lemonsqueezy.com/checkout/buy/e4b9fb7f-38a4-44b4-af24-e223b5d25243
     container_name: ratelimiter_landing
     restart: unless-stopped
     ports:
