@@ -7,6 +7,8 @@ import (
 	"log"
 	"time"
 
+	"gorm.io/gorm/clause"
+
 	"limiter.io/internal/config"
 	"limiter.io/internal/models"
 
@@ -77,7 +79,7 @@ func (kc *KafkaConsumer) Start(ctx context.Context) error {
 			return
 		}
 		log.Printf("Flushing %d analytics records to database...", len(buffer))
-		err := kc.db.Create(&buffer).Error
+		err := kc.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&buffer).Error
 		if err != nil {
 			log.Printf("Error batch inserting analytics records: %v", err)
 		} else {
