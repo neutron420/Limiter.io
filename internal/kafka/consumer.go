@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"time"
 
@@ -28,7 +29,7 @@ func NewKafkaConsumer(cfg *config.Config, db *gorm.DB) Consumer {
 		Brokers:  []string{cfg.KafkaBrokers},
 		Topic:    cfg.KafkaTopic,
 		GroupID:  cfg.KafkaGroupID,
-		MinBytes: 10e3, // 10KB
+		MinBytes: 1,
 		MaxBytes: 10e6, // 10MB
 		MaxWait:  1 * time.Second,
 	})
@@ -47,6 +48,29 @@ func (kc *KafkaConsumer) Start(ctx context.Context) error {
 	buffer := make([]models.AnalyticsLog, 0, batchSize)
 	ticker := time.NewTicker(flushInterval)
 	defer ticker.Stop()
+
+	msgChan := make(chan kafka.Message)
+	errChan := make(chan error)
+
+	// Start a background worker to read messages blocking-ly without cancellations
+	go func() {
+		for {
+			msg, err := kc.reader.ReadMessage(ctx)
+			if err != nil {
+				select {
+				case <-ctx.Done():
+					return
+				case errChan <- err:
+				}
+				continue
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case msgChan <- msg:
+			}
+		}
+	}()
 
 	flush := func() {
 		if len(buffer) == 0 {
@@ -69,21 +93,7 @@ func (kc *KafkaConsumer) Start(ctx context.Context) error {
 			return ctx.Err()
 		case <-ticker.C:
 			flush()
-		default:
-			// Read message with a timeout context to allow tick / cancellation check
-			readCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			msg, err := kc.reader.ReadMessage(readCtx)
-			cancel()
-
-			if err != nil {
-				if err == context.Canceled || err == context.DeadlineExceeded {
-					continue
-				}
-				log.Printf("Error reading message from Kafka: %v", err)
-				time.Sleep(1 * time.Second) // pause briefly on connection errors
-				continue
-			}
-
+		case msg := <-msgChan:
 			var event models.AnalyticsLog
 			if err := json.Unmarshal(msg.Value, &event); err != nil {
 				log.Printf("Failed to unmarshal analytics log: %v", err)
@@ -94,6 +104,12 @@ func (kc *KafkaConsumer) Start(ctx context.Context) error {
 			if len(buffer) >= batchSize {
 				flush()
 			}
+		case err := <-errChan:
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+			log.Printf("Error reading message from Kafka: %v", err)
+			time.Sleep(1 * time.Second)
 		}
 	}
 }

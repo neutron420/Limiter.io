@@ -58,6 +58,9 @@ type SubscriptionRepository interface {
 }
 
 type AnalyticsRepository interface {
+	// Store persists a single analytics log (direct write path from the API server,
+	// so analytics work without a running Kafka consumer).
+	Store(ctx context.Context, logEntry *models.AnalyticsLog) error
 	GetAggregatedStats(ctx context.Context, projectID uuid.UUID, start, end time.Time) (map[string]interface{}, error)
 	GetLogs(ctx context.Context, projectID uuid.UUID, limit, offset int) ([]models.AnalyticsLog, error)
 	// GetTimeSeries returns per-bucket allowed/blocked counts for charting.

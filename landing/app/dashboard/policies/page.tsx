@@ -258,8 +258,54 @@ function PoliciesInner({ project }: { project: Project }) {
             value={form.route_pattern}
             onChange={(e) => setForm({ ...form, route_pattern: e.target.value })}
             placeholder="/users/*"
-            hint="Matched against the gateway sub-path."
+            hint="Matched against the gateway sub-path. You can type custom paths or select from the options below."
           />
+          <div className="flex flex-col gap-2">
+            <Label className="tracking-wider">Quick Select Route (Checkbox)</Label>
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border-2 border-foreground p-2 bg-muted/5">
+              {[
+                { label: "Catch-all", value: "*" },
+                { label: "Users Endpoint", value: "/v1/users" },
+                { label: "Products Endpoint", value: "/v1/products" },
+                { label: "Orders Endpoint", value: "/v1/orders" },
+                { label: "Payments Endpoint", value: "/v1/payments" },
+                { label: "Inventory Endpoint", value: "/v1/inventory" },
+                { label: "Auth Login Endpoint", value: "/v1/auth/login" },
+                { label: "Search Endpoint", value: "/v1/search" },
+                { label: "Analytics Endpoint", value: "/v1/analytics" },
+                { label: "Notifications Endpoint", value: "/v1/notifications" },
+                { label: "Settings Endpoint", value: "/v1/settings" },
+              ].map((route) => (
+                <label
+                  key={route.value}
+                  className={`flex items-center gap-2 border-2 border-foreground p-2 cursor-pointer select-none transition-colors ${
+                    form.route_pattern === route.value
+                      ? "bg-[#ea580c]/10 border-[#ea580c]"
+                      : "bg-background hover:bg-muted/10"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.route_pattern === route.value}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setForm({ ...form, route_pattern: route.value })
+                      } else if (form.route_pattern === route.value) {
+                        setForm({ ...form, route_pattern: "" })
+                      }
+                    }}
+                    className="h-3.5 w-3.5 accent-[#ea580c] cursor-pointer"
+                  />
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-bold text-[9px] uppercase tracking-wider text-muted-foreground truncate">
+                      {route.label}
+                    </span>
+                    <span className="font-mono text-xs text-foreground truncate">{route.value}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
           <SelectField
             label="Algorithm"
             value={form.algorithm}

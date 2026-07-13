@@ -26,30 +26,37 @@ func RateLimit(
 	ruleRepo repository.RateLimitRuleRepository,
 	cacheRepo repository.CacheRepository,
 	producer kafka.Producer,
+	analyticsRepo repository.AnalyticsRepository,
 	rc *redis.Client,
 	hub *internalws.Hub,
 ) gin.HandlerFunc {
 	// A buffered channel to handle analytics asynchronously
 	analyticsChan := make(chan models.AnalyticsLog, 5000)
 
-	// Background worker to publish events to Kafka
+	// Background worker: persists each event directly to Postgres (so analytics
+	// work even without a running Kafka consumer) and best-effort publishes to
+	// Kafka for any downstream consumers.
 	go func() {
 		for event := range analyticsChan {
+			// Primary path: write straight to Postgres.
+			dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := analyticsRepo.Store(dbCtx, &event); err != nil {
+				log.Printf("Failed to persist analytics log to Postgres: %v", err)
+			}
+			dbCancel()
+
+			// Secondary path: publish to Kafka (best effort — non-fatal if broker is down).
 			data, err := json.Marshal(event)
 			if err != nil {
 				log.Printf("Failed to marshal analytics log for Kafka: %v", err)
 				continue
 			}
-
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			start := time.Now()
-			err = producer.PublishEvent(ctx, event.ProjectID.String(), data)
-			duration := time.Since(start).Seconds()
-			KafkaPublishLatency.Observe(duration)
-
-			if err != nil {
-				log.Printf("Failed to publish analytics to Kafka: %v", err)
+			if err := producer.PublishEvent(ctx, event.ProjectID.String(), data); err != nil {
+				log.Printf("Kafka publish failed (analytics already persisted): %v", err)
 			}
+			KafkaPublishLatency.Observe(time.Since(start).Seconds())
 			cancel()
 		}
 	}()
@@ -77,7 +84,7 @@ func RateLimit(
 			return
 		}
 
-		path := c.Request.URL.Path
+		path := strings.TrimPrefix(c.Request.URL.Path, "/api/v1/gateway")
 		var matchedRule *models.RateLimitRule
 
 		// Find the first matching rule

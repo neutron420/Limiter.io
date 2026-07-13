@@ -145,6 +145,7 @@ func main() {
 		RuleRepo:       ruleRepo,
 		KeyRepo:        keyRepo,
 		CacheRepo:      cacheRepo,
+		AnalRepo:       analRepo,
 		Producer:       producer,
 		RedisClient:    rc.Client,
 	})

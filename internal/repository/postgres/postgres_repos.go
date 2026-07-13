@@ -251,6 +251,11 @@ type analyticsRepo struct {
 	db *gorm.DB
 }
 
+// Store persists a single analytics log directly (API-server write path).
+func (r *analyticsRepo) Store(ctx context.Context, logEntry *models.AnalyticsLog) error {
+	return r.db.WithContext(ctx).Create(logEntry).Error
+}
+
 func NewAnalyticsRepository(db *gorm.DB) repository.AnalyticsRepository {
 	return &analyticsRepo{db: db}
 }

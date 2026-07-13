@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
+	"strconv"
 	"time"
 
 	"limiter.io/internal/config"
@@ -20,7 +22,42 @@ type KafkaProducer struct {
 	writer *kafka.Writer
 }
 
+func CreateTopic(brokerAddr, topic string) error {
+	conn, err := kafka.Dial("tcp", brokerAddr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	controller, err := conn.Controller()
+	if err != nil {
+		return err
+	}
+	controllerConn, err := kafka.Dial("tcp", net.JoinHostPort(controller.Host, strconv.Itoa(controller.Port)))
+	if err != nil {
+		return err
+	}
+	defer controllerConn.Close()
+
+	topicConfigs := []kafka.TopicConfig{
+		{
+			Topic:             topic,
+			NumPartitions:     1,
+			ReplicationFactor: 1,
+		},
+	}
+
+	return controllerConn.CreateTopics(topicConfigs...)
+}
+
 func NewKafkaProducer(cfg *config.Config) (Producer, error) {
+	// Programmatically create the topic if it does not exist
+	if err := CreateTopic(cfg.KafkaBrokers, cfg.KafkaTopic); err != nil {
+		log.Printf("Warning: Failed to auto-create topic %s: %v. It might already exist.", cfg.KafkaTopic, err)
+	} else {
+		log.Printf("Successfully verified/created Kafka topic: %s", cfg.KafkaTopic)
+	}
+
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(cfg.KafkaBrokers),
 		Topic:        cfg.KafkaTopic,
@@ -28,7 +65,7 @@ func NewKafkaProducer(cfg *config.Config) (Producer, error) {
 		MaxAttempts:  5,
 		WriteTimeout: 10 * time.Second,
 		RequiredAcks: kafka.RequireOne, // speed over durability, but structured
-		Async:        true,             // Asynchronous writes
+		Async:        false,            // Synchronous write to catch errors in worker
 	}
 
 	return &KafkaProducer{

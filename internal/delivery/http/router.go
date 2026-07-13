@@ -65,6 +65,7 @@ type RouterConfig struct {
 	RuleRepo      repository.RateLimitRuleRepository
 	KeyRepo       repository.APIKeyRepository
 	CacheRepo     repository.CacheRepository
+	AnalRepo      repository.AnalyticsRepository
 	Producer      kafka.Producer
 	RedisClient   *redis.Client
 }
@@ -178,7 +179,7 @@ func SetupRouter(c RouterConfig) {
 		// Protected by API Key validation & Rate Limiter middleware
 		gateway := v1.Group("/gateway")
 		gateway.Use(middleware.APIKeyAuth(c.KeyRepo, c.CacheRepo))
-		gateway.Use(middleware.RateLimit(c.Limiter, c.RuleRepo, c.CacheRepo, c.Producer, c.RedisClient, c.Hub))
+		gateway.Use(middleware.RateLimit(c.Limiter, c.RuleRepo, c.CacheRepo, c.Producer, c.AnalRepo, c.RedisClient, c.Hub))
 		{
 			// This wildcard maps any sub-path of /gateway and applies rate limiting rule matches
 			gateway.Any("/*path", func(ctx *gin.Context) {
