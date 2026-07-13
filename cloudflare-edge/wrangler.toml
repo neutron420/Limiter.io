@@ -1,0 +1,13 @@
+# wrangler.toml
+# Configuration for deploying Limiter.io Edge Interceptor
+
+name = "limiter-edge-proxy"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+API_GATEWAY_URL = "https://api.yourdomain.com/api/v1"
+GLOBAL_REDIS_REST_URL = "https://your-upstash-redis-rest-url.upstash.io"
+
+# Note: REDIS_TOKEN should be set securely via CLI secret commands:
+# wrangler secret put REDIS_TOKEN

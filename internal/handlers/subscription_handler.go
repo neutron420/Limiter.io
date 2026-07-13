@@ -28,7 +28,12 @@ func (h *SubscriptionHandler) Get(c *gin.Context) {
 	userID := uuid.MustParse(userIDStr.(string))
 	sub, err := h.subService.GetSubscription(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: err.Error()})
+		// No subscription row yet → default to free plan (expected for new users)
+		c.JSON(http.StatusOK, dto.SubscriptionResponse{
+			UserID: userID,
+			PlanID: "free",
+			Status: "active",
+		})
 		return
 	}
 

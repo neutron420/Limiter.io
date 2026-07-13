@@ -26,6 +26,7 @@ type ProjectRepository interface {
 	Create(ctx context.Context, project *models.Project) error
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Project, error)
 	ListByUserID(ctx context.Context, userID uuid.UUID) ([]models.Project, error)
+	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]models.Project, error)
 	CountByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -59,6 +60,31 @@ type SubscriptionRepository interface {
 type AnalyticsRepository interface {
 	GetAggregatedStats(ctx context.Context, projectID uuid.UUID, start, end time.Time) (map[string]interface{}, error)
 	GetLogs(ctx context.Context, projectID uuid.UUID, limit, offset int) ([]models.AnalyticsLog, error)
+	// GetTimeSeries returns per-bucket allowed/blocked counts for charting.
+	GetTimeSeries(ctx context.Context, projectID uuid.UUID, start, end time.Time, bucket string) ([]map[string]interface{}, error)
+	// CountRequestsByProjects counts total requests across projects in a window (usage metering).
+	CountRequestsByProjects(ctx context.Context, projectIDs []uuid.UUID, start, end time.Time) (int64, error)
+}
+
+type PasswordResetTokenRepository interface {
+	Create(ctx context.Context, t *models.PasswordResetToken) error
+	GetByTokenHash(ctx context.Context, tokenHash string) (*models.PasswordResetToken, error)
+	MarkUsed(ctx context.Context, id uuid.UUID) error
+	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
+}
+
+type WebhookEventRepository interface {
+	Create(ctx context.Context, e *models.WebhookEvent) error
+	ListRecent(ctx context.Context, limit int) ([]models.WebhookEvent, error)
+	ListByEmail(ctx context.Context, email string, limit int) ([]models.WebhookEvent, error)
+}
+
+type ProjectMemberRepository interface {
+	Add(ctx context.Context, m *models.ProjectMember) error
+	Remove(ctx context.Context, projectID, userID uuid.UUID) error
+	ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.ProjectMember, error)
+	ListProjectIDsByUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
+	IsMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error)
 }
 
 type CacheRepository interface {

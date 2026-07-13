@@ -104,7 +104,21 @@ func RateLimit(
 		}
 
 		// Run rate limiter decision against Redis
-		clientKey := fmt.Sprintf("%s:%s:%s", projectID.String(), apiKeyID.String(), matchedRule.ID.String())
+		var clientKeyPart string
+		switch {
+		case matchedRule.KeyStrategy == "ip":
+			clientKeyPart = c.ClientIP()
+		case strings.HasPrefix(matchedRule.KeyStrategy, "header:"):
+			headerName := strings.TrimPrefix(matchedRule.KeyStrategy, "header:")
+			clientKeyPart = c.GetHeader(headerName)
+			if clientKeyPart == "" {
+				clientKeyPart = apiKeyID.String() // fallback
+			}
+		default:
+			clientKeyPart = apiKeyID.String()
+		}
+
+		clientKey := fmt.Sprintf("%s:%s:%s", projectID.String(), clientKeyPart, matchedRule.ID.String())
 		
 		redisStart := time.Now()
 		result, err := limiter.Allow(c.Request.Context(), clientKey, policy)

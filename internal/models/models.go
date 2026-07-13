@@ -164,13 +164,17 @@ type RateLimitRule struct {
 	Name         string         `gorm:"not null" json:"name"`
 	RoutePattern string         `gorm:"not null" json:"route_pattern"` // e.g. /api/v1/users/* or *
 	Algorithm    string         `gorm:"not null" json:"algorithm"`     // token_bucket, fixed_window, etc.
-	Limit        int            `gorm:"not null" json:"limit"`
-	Period       int            `gorm:"not null" json:"period"` // in seconds
-	Burst        int            `gorm:"default:0" json:"burst"`  // used for Token Bucket/Leaky Bucket
-	IsActive     bool           `gorm:"default:true;not null" json:"is_active"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	// KeyStrategy decides what the limiter counter is bucketed by:
+	//   api_key (default) — one bucket per API key
+	//   ip                — one bucket per client IP
+	KeyStrategy string         `gorm:"default:api_key;not null" json:"key_strategy"`
+	Limit       int            `gorm:"not null" json:"limit"`
+	Period      int            `gorm:"not null" json:"period"` // in seconds
+	Burst       int            `gorm:"default:0" json:"burst"`  // used for Token Bucket/Leaky Bucket
+	IsActive    bool           `gorm:"default:true;not null" json:"is_active"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (rl *RateLimitRule) BeforeCreate(tx *gorm.DB) error {
@@ -197,6 +201,59 @@ type AnalyticsLog struct {
 func (al *AnalyticsLog) BeforeCreate(tx *gorm.DB) error {
 	if al.ID == uuid.Nil {
 		al.ID = uuid.New()
+	}
+	return nil
+}
+
+// PasswordResetToken backs the forgot-password / reset flow.
+type PasswordResetToken struct {
+	ID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	UserID    uuid.UUID  `gorm:"type:uuid;index;not null" json:"user_id"`
+	TokenHash string     `gorm:"uniqueIndex;not null" json:"-"` // SHA-256 of the emailed token
+	ExpiresAt time.Time  `gorm:"not null" json:"expires_at"`
+	UsedAt    *time.Time `json:"used_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+func (prt *PasswordResetToken) BeforeCreate(tx *gorm.DB) error {
+	if prt.ID == uuid.Nil {
+		prt.ID = uuid.New()
+	}
+	return nil
+}
+
+// WebhookEvent records every inbound billing webhook for auditing/debugging.
+type WebhookEvent struct {
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	Source     string    `gorm:"not null" json:"source"` // e.g. lemon_squeezy
+	EventName  string    `json:"event_name"`
+	Email      string    `json:"email"`
+	Verified   bool      `json:"verified"` // HMAC signature valid?
+	Status     string    `json:"status"`   // processed, ignored, rejected, error
+	Detail     string    `json:"detail"`
+	ReceivedAt time.Time `gorm:"index;not null" json:"received_at"`
+}
+
+func (we *WebhookEvent) BeforeCreate(tx *gorm.DB) error {
+	if we.ID == uuid.Nil {
+		we.ID = uuid.New()
+	}
+	return nil
+}
+
+// ProjectMember generalizes project access beyond the single owner (teams).
+type ProjectMember struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	ProjectID uuid.UUID `gorm:"type:uuid;index:idx_project_user,unique;not null" json:"project_id"`
+	UserID    uuid.UUID `gorm:"type:uuid;index:idx_project_user,unique;not null" json:"user_id"`
+	Role      string    `gorm:"not null;default:member" json:"role"` // owner, admin, member
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (pm *ProjectMember) BeforeCreate(tx *gorm.DB) error {
+	if pm.ID == uuid.Nil {
+		pm.ID = uuid.New()
 	}
 	return nil
 }

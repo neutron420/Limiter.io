@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
-import { Activity, Check, ShieldAlert, Zap, RefreshCw, Boxes, Ban } from "lucide-react"
+import { Activity, Check, ShieldAlert, Zap, RefreshCw, Boxes, Ban, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { DataTable } from "@/components/data-table"
 import {
@@ -75,6 +75,7 @@ export default function OverviewPage() {
   const [statsLoading, setStatsLoading] = React.useState(false)
   const [logs, setLogs] = React.useState<AnalyticsLog[]>([])
   const [logsLoading, setLogsLoading] = React.useState(false)
+  const [page, setPage] = React.useState(0)
   const [error, setError] = React.useState<string | null>(null)
 
   const { events, status: wsStatus } = useAnalyticsWS(projectId)
@@ -98,7 +99,7 @@ export default function OverviewPage() {
     setLogsLoading(true)
     try {
       const l = await api.get<AnalyticsLog[]>(
-        `/projects/${projectId}/analytics/logs?limit=${PAGE_SIZE}&offset=0`,
+        `/projects/${projectId}/analytics/logs?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`,
       )
       setLogs(l ?? [])
     } catch {
@@ -106,6 +107,11 @@ export default function OverviewPage() {
     } finally {
       setLogsLoading(false)
     }
+  }, [projectId, page])
+
+  // Reset to first page whenever the active project changes.
+  React.useEffect(() => {
+    setPage(0)
   }, [projectId])
 
   React.useEffect(() => {
@@ -272,6 +278,30 @@ export default function OverviewPage() {
           ) : (
             <DataTable columns={columns} data={logs} filterPlaceholder="Filter paths..." filterColumnKey="route" />
           )}
+        </div>
+        {/* Server-side pagination over the persisted logs window */}
+        <div className="flex items-center justify-between gap-4 border-t-2 border-foreground p-3">
+          <Label>
+            Page {page + 1} · showing {logs.length} record{logs.length === 1 ? "" : "s"}
+          </Label>
+          <div className="flex items-center gap-2">
+            <BrutalButton
+              variant="outline"
+              icon={ChevronLeft}
+              disabled={page === 0 || logsLoading}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              Prev
+            </BrutalButton>
+            <BrutalButton
+              variant="outline"
+              disabled={logs.length < PAGE_SIZE || logsLoading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+              <ChevronRight size={13} />
+            </BrutalButton>
+          </div>
         </div>
       </Panel>
     </div>

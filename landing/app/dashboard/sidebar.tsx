@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   BadgeCheck,
+  BarChart3,
   ChevronsUpDown,
   CreditCard,
   Folder,
@@ -48,6 +49,7 @@ const platformNav = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
   { title: "Rate Policies", url: "/dashboard/policies", icon: ShieldAlert },
   { title: "API Keys", url: "/dashboard/keys", icon: Key },
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3 },
   { title: "Playground", url: "/dashboard/playground", icon: TerminalSquare },
 ]
 

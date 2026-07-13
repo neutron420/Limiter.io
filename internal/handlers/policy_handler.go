@@ -51,6 +51,7 @@ func (h *PolicyHandler) Create(c *gin.Context) {
 		Name:         rule.Name,
 		RoutePattern: rule.RoutePattern,
 		Algorithm:    rule.Algorithm,
+		KeyStrategy:  rule.KeyStrategy,
 		Limit:        rule.Limit,
 		Period:       rule.Period,
 		Burst:        rule.Burst,
@@ -94,6 +95,7 @@ func (h *PolicyHandler) Get(c *gin.Context) {
 		Name:         rule.Name,
 		RoutePattern: rule.RoutePattern,
 		Algorithm:    rule.Algorithm,
+		KeyStrategy:  rule.KeyStrategy,
 		Limit:        rule.Limit,
 		Period:       rule.Period,
 		Burst:        rule.Burst,
@@ -132,6 +134,7 @@ func (h *PolicyHandler) List(c *gin.Context) {
 			Name:         rule.Name,
 			RoutePattern: rule.RoutePattern,
 			Algorithm:    rule.Algorithm,
+			KeyStrategy:  rule.KeyStrategy,
 			Limit:        rule.Limit,
 			Period:       rule.Period,
 			Burst:        rule.Burst,
@@ -179,18 +182,19 @@ func (h *PolicyHandler) Update(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.RuleResponse{
-		ID:           rule.ID,
-		ProjectID:    rule.ProjectID,
-		Name:         rule.Name,
-		RoutePattern: rule.RoutePattern,
-		Algorithm:    rule.Algorithm,
-		Limit:        rule.Limit,
-		Period:       rule.Period,
-		Burst:        rule.Burst,
-		IsActive:     rule.IsActive,
-		CreatedAt:    rule.CreatedAt,
-		UpdatedAt:    rule.UpdatedAt,
-	})
+			ID:           rule.ID,
+			ProjectID:    rule.ProjectID,
+			Name:         rule.Name,
+			RoutePattern: rule.RoutePattern,
+			Algorithm:    rule.Algorithm,
+			KeyStrategy:  rule.KeyStrategy,
+			Limit:        rule.Limit,
+			Period:       rule.Period,
+			Burst:        rule.Burst,
+			IsActive:     rule.IsActive,
+			CreatedAt:    rule.CreatedAt,
+			UpdatedAt:    rule.UpdatedAt,
+		})
 }
 
 func (h *PolicyHandler) Delete(c *gin.Context) {
@@ -222,4 +226,41 @@ func (h *PolicyHandler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "rate limit rule deleted successfully"})
+}
+
+func (h *PolicyHandler) Simulate(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid project ID format"})
+		return
+	}
+
+	ruleIDStr := c.Param("ruleId")
+	ruleID, err := uuid.Parse(ruleIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid rule ID format"})
+		return
+	}
+
+	var req dto.SimulationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	steps, err := h.policyService.SimulateRule(c.Request.Context(), userID, projectID, ruleID, req.NumRequests, req.RequestsPerSecond)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, steps)
 }

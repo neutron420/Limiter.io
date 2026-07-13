@@ -17,6 +17,10 @@ const buttonVariants = cva(
           "bg-secondary-background text-foreground border-2 border-border shadow-shadow hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none",
         reverse:
           "text-main-foreground bg-main border-2 border-border hover:translate-x-reverseBoxShadowX hover:translate-y-reverseBoxShadowY hover:shadow-shadow",
+        // Compatibility aliases for shadcn-derived components (calendar, carousel, pagination, alert-dialog).
+        outline:
+          "bg-transparent text-foreground border-2 border-border hover:bg-secondary-background",
+        ghost: "border-2 border-transparent bg-transparent hover:bg-secondary-background",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -32,16 +36,13 @@ const buttonVariants = cva(
   },
 )
 
-function Button({
-  className,
-  variant,
-  size,
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
+export interface ButtonProps
+  extends React.ComponentProps<"button">,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
+
+function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button"
 
   return (

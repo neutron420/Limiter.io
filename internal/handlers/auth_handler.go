@@ -185,3 +185,28 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "if the email exists, a password reset instructions has been sent"})
 }
+
+// ResetPassword godoc
+// @Summary Reset password
+// @Description Uses a reset token to set a new password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body dto.ResetPasswordRequest true "Reset Password Details"
+// @Success 200 {object} map[string]interface{} "Password reset successful"
+// @Failure 400 {object} dto.ErrorResponse "Bad Request"
+// @Router /auth/reset-password [post]
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req dto.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	if err := h.authService.ResetPassword(c.Request.Context(), req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
+}

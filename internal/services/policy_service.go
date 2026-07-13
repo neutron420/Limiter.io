@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"limiter.io/internal/dto"
 	"limiter.io/internal/models"
@@ -18,40 +19,59 @@ type PolicyService interface {
 	ListRules(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]models.RateLimitRule, error)
 	UpdateRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID, req dto.UpdateRuleRequest) (*models.RateLimitRule, error)
 	DeleteRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID) error
+	SimulateRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID, numRequests int, reqsPerSecond float64) ([]dto.SimulationStep, error)
 }
 
 type policyService struct {
 	ruleRepo    repository.RateLimitRuleRepository
 	projectRepo repository.ProjectRepository
 	subRepo     repository.SubscriptionRepository
+	memberRepo  repository.ProjectMemberRepository
 }
 
 func NewPolicyService(
 	ruleRepo repository.RateLimitRuleRepository,
 	projectRepo repository.ProjectRepository,
 	subRepo repository.SubscriptionRepository,
+	memberRepo repository.ProjectMemberRepository,
 ) PolicyService {
 	return &policyService{
 		ruleRepo:    ruleRepo,
 		projectRepo: projectRepo,
 		subRepo:     subRepo,
+		memberRepo:  memberRepo,
 	}
 }
 
+func (s *policyService) checkProjectAccess(ctx context.Context, userID, projectID uuid.UUID) error {
+	proj, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		return errors.New("project not found")
+	}
+	isOwner := proj.UserID == userID
+	isMember := false
+	if !isOwner {
+		isMember, _ = s.memberRepo.IsMember(ctx, projectID, userID)
+	}
+	if !isOwner && !isMember {
+		return errors.New("unauthorized")
+	}
+	return nil
+}
+
 func (s *policyService) CreateRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, req dto.CreateRuleRequest) (*models.RateLimitRule, error) {
-	// Verify project ownership
 	proj, err := s.projectRepo.GetByID(ctx, projectID)
 	if err != nil {
 		return nil, errors.New("project not found")
 	}
-	if proj.UserID != userID {
-		return nil, errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
 	}
 
-	// Retrieve user subscription
-	sub, err := s.subRepo.GetByUserID(ctx, userID)
+	// Retrieve project owner subscription details for limits
+	sub, err := s.subRepo.GetByUserID(ctx, proj.UserID)
 	if err != nil {
-		return nil, errors.New("subscription not found")
+		return nil, errors.New("subscription not found for project owner")
 	}
 
 	// Verify allowed algorithms for the subscription plan
@@ -68,12 +88,22 @@ func (s *policyService) CreateRule(ctx context.Context, userID uuid.UUID, projec
 		return nil, errors.New("the selected rate-limiting algorithm is not available on your plan. Please upgrade to Pro")
 	}
 
+	// Validate key strategy if provided
+	keyStrategy := req.KeyStrategy
+	if keyStrategy == "" {
+		keyStrategy = "api_key"
+	}
+	if keyStrategy != "api_key" && keyStrategy != "ip" && !strings.HasPrefix(keyStrategy, "header:") {
+		return nil, errors.New("invalid key strategy. Must be 'api_key', 'ip', or 'header:<name>'")
+	}
+
 	rule := &models.RateLimitRule{
 		ID:           uuid.New(),
 		ProjectID:    projectID,
 		Name:         req.Name,
 		RoutePattern: req.RoutePattern,
 		Algorithm:    req.Algorithm,
+		KeyStrategy:  keyStrategy,
 		Limit:        req.Limit,
 		Period:       req.Period,
 		Burst:        req.Burst,
@@ -88,12 +118,8 @@ func (s *policyService) CreateRule(ctx context.Context, userID uuid.UUID, projec
 }
 
 func (s *policyService) GetRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID) (*models.RateLimitRule, error) {
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return nil, errors.New("project not found")
-	}
-	if proj.UserID != userID {
-		return nil, errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
 	}
 
 	rule, err := s.ruleRepo.GetByID(ctx, ruleID)
@@ -109,12 +135,8 @@ func (s *policyService) GetRule(ctx context.Context, userID uuid.UUID, projectID
 }
 
 func (s *policyService) ListRules(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]models.RateLimitRule, error) {
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return nil, errors.New("project not found")
-	}
-	if proj.UserID != userID {
-		return nil, errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
 	}
 
 	return s.ruleRepo.ListByProjectID(ctx, projectID)
@@ -125,8 +147,8 @@ func (s *policyService) UpdateRule(ctx context.Context, userID uuid.UUID, projec
 	if err != nil {
 		return nil, errors.New("project not found")
 	}
-	if proj.UserID != userID {
-		return nil, errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
 	}
 
 	rule, err := s.ruleRepo.GetByID(ctx, ruleID)
@@ -157,12 +179,19 @@ func (s *policyService) UpdateRule(ctx context.Context, userID uuid.UUID, projec
 	if req.Burst != nil {
 		rule.Burst = *req.Burst
 	}
+	if req.KeyStrategy != nil {
+		strategy := *req.KeyStrategy
+		if strategy != "api_key" && strategy != "ip" && !strings.HasPrefix(strategy, "header:") {
+			return nil, errors.New("invalid key strategy. Must be 'api_key', 'ip', or 'header:<name>'")
+		}
+		rule.KeyStrategy = strategy
+	}
 
 	if req.Algorithm != nil {
-		// Verify allowed algorithms for the subscription plan
-		sub, err := s.subRepo.GetByUserID(ctx, userID)
+		// Verify allowed algorithms for the subscription plan of project owner
+		sub, err := s.subRepo.GetByUserID(ctx, proj.UserID)
 		if err != nil {
-			return nil, errors.New("subscription not found")
+			return nil, errors.New("subscription not found for project owner")
 		}
 
 		allowedAlgos := strings.Split(sub.Plan.AllowedAlgorithms, ",")
@@ -188,12 +217,8 @@ func (s *policyService) UpdateRule(ctx context.Context, userID uuid.UUID, projec
 }
 
 func (s *policyService) DeleteRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID) error {
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return errors.New("project not found")
-	}
-	if proj.UserID != userID {
-		return errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return err
 	}
 
 	rule, err := s.ruleRepo.GetByID(ctx, ruleID)
@@ -206,4 +231,166 @@ func (s *policyService) DeleteRule(ctx context.Context, userID uuid.UUID, projec
 	}
 
 	return s.ruleRepo.Delete(ctx, ruleID)
+}
+
+func (s *policyService) SimulateRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID, numRequests int, reqsPerSecond float64) ([]dto.SimulationStep, error) {
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
+	}
+
+	rule, err := s.ruleRepo.GetByID(ctx, ruleID)
+	if err != nil {
+		return nil, errors.New("rule not found")
+	}
+
+	if rule.ProjectID != projectID {
+		return nil, errors.New("rule does not belong to this project")
+	}
+
+	if numRequests <= 0 || numRequests > 500 {
+		numRequests = 50
+	}
+	if reqsPerSecond <= 0 {
+		reqsPerSecond = 10
+	}
+
+	steps := make([]dto.SimulationStep, numRequests)
+	startTime := time.Now()
+	interval := time.Duration(float64(time.Second) / reqsPerSecond)
+
+	// Simulation states per algorithm
+	// 1. Token Bucket state
+	tbTokens := float64(rule.Limit)
+	if rule.Burst > 0 {
+		tbTokens = float64(rule.Burst)
+	}
+	tbLastRefill := startTime
+
+	// 2. Fixed Window state
+	fwCount := 0
+	fwWindowStart := startTime.Unix() / int64(rule.Period)
+
+	// 3. Sliding Window Counter state
+	swcPrevCount := 0
+	swcCurrCount := 0
+	swcWindowStart := startTime.Unix() / int64(rule.Period)
+
+	// 4. Sliding Window Log state
+	var swlLog []time.Time
+
+	// 5. Leaky Bucket state
+	lbQueueSize := 0.0
+	lbLastLeak := startTime
+
+	for i := 0; i < numRequests; i++ {
+		reqTime := startTime.Add(time.Duration(i) * interval)
+		allowed := false
+		remaining := 0
+
+		switch rule.Algorithm {
+		case "token_bucket":
+			elapsed := reqTime.Sub(tbLastRefill).Seconds()
+			tbLastRefill = reqTime
+			refillRate := float64(rule.Limit) / float64(rule.Period)
+			capacity := float64(rule.Limit)
+			if rule.Burst > 0 {
+				capacity = float64(rule.Burst)
+			}
+			tbTokens = tbTokens + (elapsed * refillRate)
+			if tbTokens > capacity {
+				tbTokens = capacity
+			}
+
+			if tbTokens >= 1.0 {
+				tbTokens -= 1.0
+				allowed = true
+			}
+			remaining = int(tbTokens)
+
+		case "fixed_window":
+			window := reqTime.Unix() / int64(rule.Period)
+			if window != fwWindowStart {
+				fwWindowStart = window
+				fwCount = 0
+			}
+			if fwCount < rule.Limit {
+				fwCount++
+				allowed = true
+			}
+			remaining = rule.Limit - fwCount
+
+		case "sliding_window_counter":
+			window := reqTime.Unix() / int64(rule.Period)
+			if window != swcWindowStart {
+				if window == swcWindowStart+1 {
+					swcPrevCount = swcCurrCount
+				} else {
+					swcPrevCount = 0
+				}
+				swcCurrCount = 0
+				swcWindowStart = window
+			}
+
+			fraction := float64(reqTime.Unix()%int64(rule.Period)) / float64(rule.Period)
+			estimatedRate := float64(swcPrevCount)*(1.0-fraction) + float64(swcCurrCount)
+
+			if estimatedRate < float64(rule.Limit) {
+				swcCurrCount++
+				allowed = true
+			}
+			remaining = int(float64(rule.Limit) - estimatedRate)
+			if remaining < 0 {
+				remaining = 0
+			}
+
+		case "sliding_window_log":
+			cutoff := reqTime.Add(-time.Duration(rule.Period) * time.Second)
+			var newLog []time.Time
+			for _, t := range swlLog {
+				if t.After(cutoff) {
+					newLog = append(newLog, t)
+				}
+			}
+			swlLog = newLog
+
+			if len(swlLog) < rule.Limit {
+				swlLog = append(swlLog, reqTime)
+				allowed = true
+			}
+			remaining = rule.Limit - len(swlLog)
+
+		case "leaky_bucket":
+			elapsed := reqTime.Sub(lbLastLeak).Seconds()
+			lbLastLeak = reqTime
+			leakRate := float64(rule.Limit) / float64(rule.Period)
+			lbQueueSize = lbQueueSize - (elapsed * leakRate)
+			if lbQueueSize < 0 {
+				lbQueueSize = 0
+			}
+
+			capacity := float64(rule.Limit)
+			if rule.Burst > 0 {
+				capacity = float64(rule.Burst)
+			}
+
+			if lbQueueSize+1.0 <= capacity {
+				lbQueueSize += 1.0
+				allowed = true
+			}
+			remaining = int(capacity - lbQueueSize)
+
+		default:
+			allowed = true
+		}
+
+		steps[i] = dto.SimulationStep{
+			RequestNumber: i + 1,
+			Timestamp:     reqTime,
+			Allowed:       allowed,
+			Remaining:     remaining,
+			Limit:         rule.Limit,
+		}
+	}
+
+	return steps, nil
 }

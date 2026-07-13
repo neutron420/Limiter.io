@@ -1,6 +1,8 @@
 package http
 
 import (
+	"strings"
+
 	"limiter.io/internal/config"
 	"limiter.io/internal/handlers"
 	"limiter.io/internal/kafka"
@@ -16,6 +18,35 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+// parseCORSOrigins splits the comma-separated CORS_ALLOWED_ORIGINS config into
+// a trimmed slice. An empty value falls back to "*" (allow any).
+func parseCORSOrigins(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{"*"}
+	}
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			origins = append(origins, t)
+		}
+	}
+	if len(origins) == 0 {
+		return []string{"*"}
+	}
+	return origins
+}
+
+func originAllowed(origin string, allowed []string) bool {
+	for _, a := range allowed {
+		if a == origin {
+			return true
+		}
+	}
+	return false
+}
 
 type RouterConfig struct {
 	Engine        *gin.Engine
@@ -44,10 +75,21 @@ func SetupRouter(c RouterConfig) {
 	c.Engine.Use(middleware.Recovery(nil)) // nil logger will default to internal behavior or standard out
 	c.Engine.Use(middleware.Metrics())
 
-	// CORS Setup
+	// CORS Setup — origins are configurable via CORS_ALLOWED_ORIGINS
+	// ("*" for any, or a comma-separated allowlist). Credentials are only
+	// enabled for an explicit allowlist (browsers reject "*" + credentials).
+	allowedOrigins := parseCORSOrigins(c.Cfg.CORSAllowedOrigins)
+	allowAny := len(allowedOrigins) == 1 && allowedOrigins[0] == "*"
+
 	c.Engine.Use(func(ctx *gin.Context) {
-		ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		ctx.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		origin := ctx.GetHeader("Origin")
+		if allowAny {
+			ctx.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		} else if origin != "" && originAllowed(origin, allowedOrigins) {
+			ctx.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			ctx.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			ctx.Writer.Header().Add("Vary", "Origin")
+		}
 		ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-API-Key")
 		ctx.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
@@ -76,6 +118,7 @@ func SetupRouter(c RouterConfig) {
 			auth.POST("/login", c.AuthHandler.Login)
 			auth.POST("/refresh", c.AuthHandler.Refresh)
 			auth.POST("/forgot-password", c.AuthHandler.ForgotPassword)
+			auth.POST("/reset-password", c.AuthHandler.ResetPassword)
 		}
 
 		// Billing Webhooks (Public endpoint for Lemon Squeezy callback)
@@ -95,6 +138,11 @@ func SetupRouter(c RouterConfig) {
 			private.GET("/projects/:projectId", c.ProjHandler.Get)
 			private.DELETE("/projects/:projectId", c.ProjHandler.Delete)
 
+			// Project Members
+			private.GET("/projects/:projectId/members", c.ProjHandler.ListMembers)
+			private.POST("/projects/:projectId/members", c.ProjHandler.AddMember)
+			private.DELETE("/projects/:projectId/members/:memberId", c.ProjHandler.RemoveMember)
+
 			// API Keys
 			private.POST("/projects/:projectId/keys", c.KeyHandler.Create)
 			private.GET("/projects/:projectId/keys", c.KeyHandler.List)
@@ -108,10 +156,12 @@ func SetupRouter(c RouterConfig) {
 			private.GET("/projects/:projectId/rules/:ruleId", c.PolicyHandler.Get)
 			private.PUT("/projects/:projectId/rules/:ruleId", c.PolicyHandler.Update)
 			private.DELETE("/projects/:projectId/rules/:ruleId", c.PolicyHandler.Delete)
+			private.POST("/projects/:projectId/rules/:ruleId/simulate", c.PolicyHandler.Simulate)
 
 			// Analytics
 			private.GET("/projects/:projectId/analytics/stats", c.AnalHandler.GetStats)
 			private.GET("/projects/:projectId/analytics/logs", c.AnalHandler.GetLogs)
+			private.GET("/projects/:projectId/analytics/timeseries", c.AnalHandler.GetTimeSeries)
 
 			// Real-time WebSocket analytics stream
 			private.GET("/projects/:projectId/ws", c.WSHandler.Connect)
@@ -119,6 +169,9 @@ func SetupRouter(c RouterConfig) {
 			// Subscription
 			private.GET("/subscription", c.SubHandler.Get)
 			private.POST("/subscription/upgrade", c.SubHandler.Upgrade)
+
+			// Billing webhooks audit log
+			private.GET("/billing/webhooks", c.BillingHandler.ListWebhooks)
 		}
 
 		// Developer API Gateway Simulation Endpoint

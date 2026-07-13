@@ -97,3 +97,44 @@ func (h *AnalyticsHandler) GetLogs(c *gin.Context) {
 
 	c.JSON(http.StatusOK, logs)
 }
+
+func (h *AnalyticsHandler) GetTimeSeries(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid project ID format"})
+		return
+	}
+
+	durationStr := c.DefaultQuery("duration", "24h")
+	if len(durationStr) > 1 && durationStr[len(durationStr)-1] == 'd' {
+		daysStr := durationStr[:len(durationStr)-1]
+		days, err := strconv.Atoi(daysStr)
+		if err == nil {
+			durationStr = strconv.Itoa(days*24) + "h"
+		}
+	}
+
+	duration, err := time.ParseDuration(durationStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid duration format. Examples: 24h, 7d, 30d"})
+		return
+	}
+
+	bucket := c.DefaultQuery("bucket", "hour")
+
+	userID := uuid.MustParse(userIDStr.(string))
+	series, err := h.analyticsService.GetTimeSeries(c.Request.Context(), userID, projectID, duration, bucket)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, series)
+}

@@ -32,6 +32,7 @@ type Config struct {
 	AdminPassword string `mapstructure:"ADMIN_PASSWORD"`
 	LemonSqueezyWebhookSecret string `mapstructure:"LEMON_SQUEEZY_WEBHOOK_SECRET"`
 	LemonSqueezyProVariantID  string `mapstructure:"LEMON_SQUEEZY_PRO_VARIANT_ID"`
+	CORSAllowedOrigins        string `mapstructure:"CORS_ALLOWED_ORIGINS"` // comma-separated, or "*"
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -66,7 +67,8 @@ func LoadConfig(path string) (*Config, error) {
 	viper.SetDefault("ADMIN_EMAIL", "admin@ratelimiter.io")
 	viper.SetDefault("ADMIN_PASSWORD", "AdminPass123!")
 	viper.SetDefault("LEMON_SQUEEZY_WEBHOOK_SECRET", "")
-	viper.SetDefault("LEMON_SQUEEZY_PRO_VARIANT_ID", "")
+	viper.SetDefault("LEMON_SQUEEZY_PRO_VARIANT_ID", "1899978")
+	viper.SetDefault("CORS_ALLOWED_ORIGINS", "*") // dev default; set explicit origins in production
 
 	if err := viper.ReadInConfig(); err != nil {
 		// It's ok if .env file is missing, config can be read from environment variables directly

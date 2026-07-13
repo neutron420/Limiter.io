@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"limiter.io/internal/config"
@@ -21,6 +22,7 @@ type AuthService interface {
 	Logout(ctx context.Context, userID uuid.UUID) error
 	ChangePassword(ctx context.Context, userID uuid.UUID, req dto.ChangePasswordRequest) error
 	ForgotPassword(ctx context.Context, req dto.ForgotPasswordRequest) error
+	ResetPassword(ctx context.Context, req dto.ResetPasswordRequest) error
 }
 
 type authService struct {
@@ -28,6 +30,7 @@ type authService struct {
 	rtRepo     repository.RefreshTokenRepository
 	subRepo    repository.SubscriptionRepository
 	cacheRepo  repository.CacheRepository
+	prtRepo    repository.PasswordResetTokenRepository
 	cfg        *config.Config
 }
 
@@ -36,6 +39,7 @@ func NewAuthService(
 	rtRepo repository.RefreshTokenRepository,
 	subRepo repository.SubscriptionRepository,
 	cacheRepo repository.CacheRepository,
+	prtRepo repository.PasswordResetTokenRepository,
 	cfg *config.Config,
 ) AuthService {
 	return &authService{
@@ -43,6 +47,7 @@ func NewAuthService(
 		rtRepo:    rtRepo,
 		subRepo:   subRepo,
 		cacheRepo: cacheRepo,
+		prtRepo:   prtRepo,
 		cfg:       cfg,
 	}
 }
@@ -207,14 +212,63 @@ func (s *authService) ChangePassword(ctx context.Context, userID uuid.UUID, req 
 }
 
 func (s *authService) ForgotPassword(ctx context.Context, req dto.ForgotPasswordRequest) error {
-	// Secure Architecture:
-	// Verify user exists, generate token, send password reset link email (mock for backend-only platform).
-	_, err := s.userRepo.GetByEmail(ctx, req.Email)
+	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
 		// Silence error for security (prevent email enumeration)
 		return nil
 	}
 
-	// In real-world, push PasswordResetEvent to a queue (Kafka or mail processor)
+	// Generate secure token
+	rawToken, err := utils.GenerateRandomToken(32)
+	if err != nil {
+		return err
+	}
+
+	// Hash the token using SHA-256
+	tokenHash := utils.HashAPIKey(rawToken)
+
+	// Invalidate any existing password reset tokens for this user
+	_ = s.prtRepo.DeleteByUserID(ctx, user.ID)
+
+	// Save token in DB
+	t := &models.PasswordResetToken{
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		ExpiresAt: time.Now().Add(1 * time.Hour), // 1 hour expiry
+	}
+	if err := s.prtRepo.Create(ctx, t); err != nil {
+		return err
+	}
+
+	// Print reset link to stdout/logs for operator retrieval
+	log.Printf("\n============================================\n[PASSWORD RESET LINK GENERATED]\nTo reset password, open: http://localhost:3000/reset-password?token=%s\n============================================\n", rawToken)
+
+	return nil
+}
+
+func (s *authService) ResetPassword(ctx context.Context, req dto.ResetPasswordRequest) error {
+	tokenHash := utils.HashAPIKey(req.Token)
+	t, err := s.prtRepo.GetByTokenHash(ctx, tokenHash)
+	if err != nil {
+		return errors.New("invalid or expired reset token")
+	}
+
+	user, err := s.userRepo.GetByID(ctx, t.UserID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	newHash, err := utils.HashPassword(req.Password)
+	if err != nil {
+		return err
+	}
+
+	user.PasswordHash = newHash
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	// Delete tokens after successful use
+	_ = s.prtRepo.DeleteByUserID(ctx, user.ID)
 	return nil
 }

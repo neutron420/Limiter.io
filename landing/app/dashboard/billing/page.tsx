@@ -54,6 +54,8 @@ export default function BillingPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [upgrading, setUpgrading] = React.useState<PlanID | null>(null)
+  const [webhooks, setWebhooks] = React.useState<any[]>([])
+  const [webhooksLoading, setWebhooksLoading] = React.useState(true)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -68,9 +70,22 @@ export default function BillingPage() {
     }
   }, [])
 
+  const loadWebhooks = React.useCallback(async () => {
+    setWebhooksLoading(true)
+    try {
+      const w = await api.get<any[]>("/billing/webhooks")
+      setWebhooks(w ?? [])
+    } catch {
+      // Ignore background load error
+    } finally {
+      setWebhooksLoading(false)
+    }
+  }, [])
+
   React.useEffect(() => {
     load()
-  }, [load])
+    loadWebhooks()
+  }, [load, loadWebhooks])
 
   // Pro upgrades go through Lemon Squeezy hosted checkout. After payment,
   // Lemon Squeezy fires the `subscription_created` webhook → POST /billing/webhook,
@@ -190,6 +205,48 @@ export default function BillingPage() {
         Payments are processed via Lemon Squeezy. Subscription changes are reconciled through the billing
         webhook.
       </p>
+
+      {/* Webhook Audit Log */}
+      <Panel>
+        <PanelHeader title="Billing Webhook Logs" icon={Sparkles} />
+        {webhooksLoading ? (
+          <Spinner label="LOADING AUDIT TRAIL" />
+        ) : webhooks.length === 0 ? (
+          <p className="p-4 text-[11px] uppercase text-muted-foreground">
+            No billing webhooks received yet. Try starting checkout or triggering checkout callback.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse font-mono">
+              <thead>
+                <tr className="border-b-2 border-foreground bg-muted/10 text-[9px] uppercase tracking-wider text-muted-foreground">
+                  <th className="p-3 font-bold">Event Name</th>
+                  <th className="p-3 font-bold">Received At</th>
+                  <th className="p-3 font-bold">Verified</th>
+                  <th className="p-3 font-bold">Audit Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-foreground/10 text-[11px]">
+                {webhooks.map((w) => (
+                  <tr key={w.id} className="hover:bg-muted/5">
+                    <td className="p-3 text-[#ea580c] font-bold">{w.event_name}</td>
+                    <td className="p-3 tabular-nums">{new Date(w.received_at).toLocaleString()}</td>
+                    <td className="p-3">
+                      <span className={w.verified ? "text-green-500 font-bold" : "text-red-500 font-bold"}>
+                        {w.verified ? "VERIFIED" : "UNVERIFIED"}
+                      </span>
+                    </td>
+                    <td className="p-3 flex items-center gap-2">
+                      <StatusBadge status={w.status === "processed" ? "active" : "inactive"} />
+                      <span className="font-bold uppercase">{w.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </div>
   )
 }

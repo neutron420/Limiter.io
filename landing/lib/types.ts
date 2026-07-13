@@ -46,6 +46,7 @@ export interface Rule {
   name: string
   route_pattern: string
   algorithm: Algorithm
+  key_strategy: string
   limit: number
   period: number
   burst: number

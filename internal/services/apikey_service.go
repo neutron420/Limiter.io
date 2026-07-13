@@ -26,6 +26,7 @@ type apiKeyService struct {
 	projectRepo repository.ProjectRepository
 	subRepo     repository.SubscriptionRepository
 	cacheRepo   repository.CacheRepository
+	memberRepo  repository.ProjectMemberRepository
 }
 
 func NewAPIKeyService(
@@ -33,29 +34,46 @@ func NewAPIKeyService(
 	projectRepo repository.ProjectRepository,
 	subRepo repository.SubscriptionRepository,
 	cacheRepo repository.CacheRepository,
+	memberRepo repository.ProjectMemberRepository,
 ) APIKeyService {
 	return &apiKeyService{
 		apiKeyRepo:  apiKeyRepo,
 		projectRepo: projectRepo,
 		subRepo:     subRepo,
 		cacheRepo:   cacheRepo,
+		memberRepo:  memberRepo,
 	}
 }
 
+func (s *apiKeyService) checkProjectAccess(ctx context.Context, userID, projectID uuid.UUID) error {
+	proj, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		return errors.New("project not found")
+	}
+	isOwner := proj.UserID == userID
+	isMember := false
+	if !isOwner {
+		isMember, _ = s.memberRepo.IsMember(ctx, projectID, userID)
+	}
+	if !isOwner && !isMember {
+		return errors.New("unauthorized to manage this project")
+	}
+	return nil
+}
+
 func (s *apiKeyService) CreateAPIKey(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, req dto.CreateAPIKeyRequest) (*models.APIKey, string, error) {
-	// Verify project ownership
 	proj, err := s.projectRepo.GetByID(ctx, projectID)
 	if err != nil {
 		return nil, "", errors.New("project not found")
 	}
-	if proj.UserID != userID {
-		return nil, "", errors.New("unauthorized to manage this project")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, "", err
 	}
 
-	// Retrieve active subscription limits
-	sub, err := s.subRepo.GetByUserID(ctx, userID)
+	// Retrieve active subscription limits for the project owner
+	sub, err := s.subRepo.GetByUserID(ctx, proj.UserID)
 	if err != nil {
-		return nil, "", errors.New("subscription not found for user")
+		return nil, "", errors.New("subscription not found for project owner")
 	}
 
 	// Count existing keys in project
@@ -75,7 +93,6 @@ func (s *apiKeyService) CreateAPIKey(ctx context.Context, userID uuid.UUID, proj
 		return nil, "", err
 	}
 
-	// First 12 characters are prefix (e.g. "rk_live_1234")
 	prefix := plainKey[:12]
 
 	apiKey := &models.APIKey{
@@ -95,26 +112,16 @@ func (s *apiKeyService) CreateAPIKey(ctx context.Context, userID uuid.UUID, proj
 }
 
 func (s *apiKeyService) ListAPIKeys(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]models.APIKey, error) {
-	// Verify project ownership
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return nil, errors.New("project not found")
-	}
-	if proj.UserID != userID {
-		return nil, errors.New("unauthorized to access this project")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
 	}
 
 	return s.apiKeyRepo.ListByProjectID(ctx, projectID)
 }
 
 func (s *apiKeyService) RotateAPIKey(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, keyID uuid.UUID) (*models.APIKey, string, error) {
-	// Verify project ownership
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return nil, "", errors.New("project not found")
-	}
-	if proj.UserID != userID {
-		return nil, "", errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, "", err
 	}
 
 	// Fetch existing key
@@ -148,12 +155,8 @@ func (s *apiKeyService) RotateAPIKey(ctx context.Context, userID uuid.UUID, proj
 }
 
 func (s *apiKeyService) RevokeAPIKey(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, keyID uuid.UUID) error {
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return errors.New("project not found")
-	}
-	if proj.UserID != userID {
-		return errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return err
 	}
 
 	key, err := s.apiKeyRepo.GetByID(ctx, keyID)
@@ -171,12 +174,8 @@ func (s *apiKeyService) RevokeAPIKey(ctx context.Context, userID uuid.UUID, proj
 }
 
 func (s *apiKeyService) DeleteAPIKey(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, keyID uuid.UUID) error {
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return errors.New("project not found")
-	}
-	if proj.UserID != userID {
-		return errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return err
 	}
 
 	key, err := s.apiKeyRepo.GetByID(ctx, keyID)

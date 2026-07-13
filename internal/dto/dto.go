@@ -75,6 +75,7 @@ type CreateRuleRequest struct {
 	Name         string `json:"name" binding:"required,min=3,max=100"`
 	RoutePattern string `json:"route_pattern" binding:"required"` // e.g. /users/*
 	Algorithm    string `json:"algorithm" binding:"required,oneof=token_bucket fixed_window sliding_window_counter sliding_window_log leaky_bucket"`
+	KeyStrategy  string `json:"key_strategy" binding:"omitempty"` // api_key, ip, header:<name>
 	Limit        int    `json:"limit" binding:"required,gt=0"`
 	Period       int    `json:"period" binding:"required,gt=0"` // in seconds
 	Burst        int    `json:"burst" binding:"omitempty,gte=0"`
@@ -86,6 +87,7 @@ type RuleResponse struct {
 	Name         string    `json:"name"`
 	RoutePattern string    `json:"route_pattern"`
 	Algorithm    string    `json:"algorithm"`
+	KeyStrategy  string    `json:"key_strategy"`
 	Limit        int       `json:"limit"`
 	Period       int       `json:"period"`
 	Burst        int       `json:"burst"`
@@ -98,6 +100,7 @@ type UpdateRuleRequest struct {
 	Name         *string `json:"name" binding:"omitempty,min=3,max=100"`
 	RoutePattern *string `json:"route_pattern" binding:"omitempty"`
 	Algorithm    *string `json:"algorithm" binding:"omitempty,oneof=token_bucket fixed_window sliding_window_counter sliding_window_log leaky_bucket"`
+	KeyStrategy  *string `json:"key_strategy" binding:"omitempty"`
 	Limit        *int    `json:"limit" binding:"omitempty,gt=0"`
 	Period       *int    `json:"period" binding:"omitempty,gt=0"`
 	Burst        *int    `json:"burst" binding:"omitempty,gte=0"`
@@ -120,4 +123,36 @@ type UpgradeSubscriptionRequest struct {
 
 type ErrorResponse struct {
 	Error string `json:"error"`
+}
+
+type ResetPasswordRequest struct {
+	Token    string `json:"token" binding:"required"`
+	Password string `json:"password" binding:"required,min=8"`
+}
+
+type AddMemberRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Role  string `json:"role" binding:"required,oneof=admin member"`
+}
+
+type MemberResponse struct {
+	ID        uuid.UUID `json:"id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type SimulationRequest struct {
+	RequestsPerSecond float64 `json:"requests_per_second" binding:"required,gt=0"`
+	NumRequests       int     `json:"num_requests" binding:"required,gt=0,lte=500"`
+}
+
+type SimulationStep struct {
+	RequestNumber int       `json:"request_number"`
+	Timestamp     time.Time `json:"timestamp"`
+	Allowed       bool      `json:"allowed"`
+	Remaining     int       `json:"remaining"`
+	Limit         int       `json:"limit"`
 }

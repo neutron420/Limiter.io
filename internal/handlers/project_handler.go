@@ -131,3 +131,107 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "project deleted successfully"})
 }
+
+func (h *ProjectHandler) AddMember(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid project ID format"})
+		return
+	}
+
+	var req dto.AddMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	member, err := h.projectService.AddMember(c.Request.Context(), userID, projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, dto.MemberResponse{
+		ID:        member.ID,
+		ProjectID: member.ProjectID,
+		UserID:    member.UserID,
+		Email:     member.Email,
+		Role:      member.Role,
+		CreatedAt: member.CreatedAt,
+	})
+}
+
+func (h *ProjectHandler) RemoveMember(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid project ID format"})
+		return
+	}
+
+	memberIDStr := c.Param("memberId")
+	memberID, err := uuid.Parse(memberIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid member ID format"})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	err = h.projectService.RemoveMember(c.Request.Context(), userID, projectID, memberID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "member removed successfully"})
+}
+
+func (h *ProjectHandler) ListMembers(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid project ID format"})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	members, err := h.projectService.ListMembers(c.Request.Context(), userID, projectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	resp := make([]dto.MemberResponse, len(members))
+	for i, m := range members {
+		resp[i] = dto.MemberResponse{
+			ID:        m.ID,
+			ProjectID: m.ProjectID,
+			UserID:    m.UserID,
+			Email:     m.Email,
+			Role:      m.Role,
+			CreatedAt: m.CreatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
+}

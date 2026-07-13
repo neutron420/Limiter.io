@@ -26,6 +26,7 @@ interface FormState {
   name: string
   route_pattern: string
   algorithm: Algorithm
+  key_strategy: string
   limit: string
   period: string
   burst: string
@@ -35,6 +36,7 @@ const emptyForm: FormState = {
   name: "",
   route_pattern: "",
   algorithm: "token_bucket",
+  key_strategy: "api_key",
   limit: "100",
   period: "60",
   burst: "0",
@@ -85,6 +87,7 @@ function PoliciesInner({ project }: { project: Project }) {
       name: r.name,
       route_pattern: r.route_pattern,
       algorithm: r.algorithm,
+      key_strategy: r.key_strategy || "api_key",
       limit: String(r.limit),
       period: String(r.period),
       burst: String(r.burst),
@@ -100,6 +103,7 @@ function PoliciesInner({ project }: { project: Project }) {
       name: form.name,
       route_pattern: form.route_pattern,
       algorithm: form.algorithm,
+      key_strategy: form.key_strategy,
       limit: Number(form.limit),
       period: Number(form.period),
       burst: Number(form.burst) || 0,
@@ -191,7 +195,7 @@ function PoliciesInner({ project }: { project: Project }) {
                   icon={ShieldAlert}
                   action={<StatusBadge status={r.is_active ? "active" : "inactive"} />}
                 />
-                <div className="grid grid-cols-3 gap-px bg-foreground/10">
+                <div className="grid grid-cols-4 gap-px bg-foreground/10">
                   <div className="bg-background p-3">
                     <Label>Algorithm</Label>
                     <div className="mt-1 text-xs font-bold text-[#ea580c]">{ALGO_LABEL[r.algorithm]}</div>
@@ -205,6 +209,16 @@ function PoliciesInner({ project }: { project: Project }) {
                   <div className="bg-background p-3">
                     <Label>Burst</Label>
                     <div className="mt-1 text-xs font-bold tabular-nums">{r.burst}</div>
+                  </div>
+                  <div className="bg-background p-3">
+                    <Label>Granularity</Label>
+                    <div className="mt-1 text-xs font-bold text-foreground">
+                      {r.key_strategy === "ip"
+                        ? "Client IP"
+                        : r.key_strategy?.startsWith("header:")
+                          ? `Header (${r.key_strategy.substring(7)})`
+                          : "API Key"}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-auto flex items-center gap-2 border-t-2 border-foreground p-3">
@@ -258,6 +272,34 @@ function PoliciesInner({ project }: { project: Project }) {
               </option>
             ))}
           </SelectField>
+          
+          <SelectField
+            label="Limit Strategy"
+            value={form.key_strategy === "ip" ? "ip" : form.key_strategy.startsWith("header:") ? "header" : "api_key"}
+            onChange={(e) => {
+              const val = e.target.value
+              if (val === "header") {
+                setForm({ ...form, key_strategy: "header:X-Client-ID" })
+              } else {
+                setForm({ ...form, key_strategy: val })
+              }
+            }}
+            hint="Determine how client requests are bucketed together."
+          >
+            <option value="api_key">API Key (one counter per key)</option>
+            <option value="ip">Client IP (one counter per IP address)</option>
+            <option value="header">Custom HTTP Header</option>
+          </SelectField>
+
+          {form.key_strategy.startsWith("header:") && (
+            <Field
+              label="HTTP Header Name"
+              value={form.key_strategy.substring(7)}
+              onChange={(e) => setForm({ ...form, key_strategy: `header:${e.target.value}` })}
+              placeholder="X-Client-ID"
+              hint="Clients must pass this header to be limited. Falls back to API Key if missing."
+            />
+          )}
           <div className="grid grid-cols-3 gap-3">
             <Field
               label="Limit"

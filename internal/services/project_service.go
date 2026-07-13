@@ -16,17 +16,29 @@ type ProjectService interface {
 	GetProject(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) (*models.Project, error)
 	ListProjects(ctx context.Context, userID uuid.UUID) ([]models.Project, error)
 	DeleteProject(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) error
+	AddMember(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, req dto.AddMemberRequest) (*models.ProjectMember, error)
+	RemoveMember(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, memberID uuid.UUID) error
+	ListMembers(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]models.ProjectMember, error)
 }
 
 type projectService struct {
 	projectRepo repository.ProjectRepository
 	subRepo     repository.SubscriptionRepository
+	memberRepo  repository.ProjectMemberRepository
+	userRepo    repository.UserRepository
 }
 
-func NewProjectService(projectRepo repository.ProjectRepository, subRepo repository.SubscriptionRepository) ProjectService {
+func NewProjectService(
+	projectRepo repository.ProjectRepository,
+	subRepo repository.SubscriptionRepository,
+	memberRepo repository.ProjectMemberRepository,
+	userRepo repository.UserRepository,
+) ProjectService {
 	return &projectService{
 		projectRepo: projectRepo,
 		subRepo:     subRepo,
+		memberRepo:  memberRepo,
+		userRepo:    userRepo,
 	}
 }
 
@@ -68,7 +80,13 @@ func (s *projectService) GetProject(ctx context.Context, userID uuid.UUID, proje
 		return nil, errors.New("project not found")
 	}
 
-	if project.UserID != userID {
+	isOwner := project.UserID == userID
+	isMember := false
+	if !isOwner {
+		isMember, _ = s.memberRepo.IsMember(ctx, projectID, userID)
+	}
+
+	if !isOwner && !isMember {
 		return nil, errors.New("unauthorized to access this project")
 	}
 
@@ -76,7 +94,22 @@ func (s *projectService) GetProject(ctx context.Context, userID uuid.UUID, proje
 }
 
 func (s *projectService) ListProjects(ctx context.Context, userID uuid.UUID) ([]models.Project, error) {
-	return s.projectRepo.ListByUserID(ctx, userID)
+	owned, err := s.projectRepo.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	memberProjectIDs, err := s.memberRepo.ListProjectIDsByUser(ctx, userID)
+	if err != nil || len(memberProjectIDs) == 0 {
+		return owned, nil
+	}
+
+	memberProjects, err := s.projectRepo.ListByIDs(ctx, memberProjectIDs)
+	if err != nil {
+		return owned, nil
+	}
+
+	return append(owned, memberProjects...), nil
 }
 
 func (s *projectService) DeleteProject(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) error {
@@ -90,4 +123,69 @@ func (s *projectService) DeleteProject(ctx context.Context, userID uuid.UUID, pr
 	}
 
 	return s.projectRepo.Delete(ctx, projectID)
+}
+
+func (s *projectService) AddMember(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, req dto.AddMemberRequest) (*models.ProjectMember, error) {
+	proj, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		return nil, errors.New("project not found")
+	}
+	if proj.UserID != userID {
+		return nil, errors.New("only the project owner can manage team members")
+	}
+
+	targetUser, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, errors.New("user with this email not found")
+	}
+
+	if targetUser.ID == userID {
+		return nil, errors.New("cannot invite the owner of the project")
+	}
+
+	isMem, _ := s.memberRepo.IsMember(ctx, projectID, targetUser.ID)
+	if isMem {
+		return nil, errors.New("user is already a member of this project")
+	}
+
+	member := &models.ProjectMember{
+		ID:        uuid.New(),
+		ProjectID: projectID,
+		UserID:    targetUser.ID,
+		Email:     targetUser.Email,
+		Role:      req.Role,
+	}
+
+	if err := s.memberRepo.Add(ctx, member); err != nil {
+		return nil, err
+	}
+
+	return member, nil
+}
+
+func (s *projectService) RemoveMember(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, memberID uuid.UUID) error {
+	proj, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		return errors.New("project not found")
+	}
+	if proj.UserID != userID {
+		return errors.New("only the project owner can manage team members")
+	}
+
+	return s.memberRepo.Remove(ctx, projectID, memberID)
+}
+
+func (s *projectService) ListMembers(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]models.ProjectMember, error) {
+	proj, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		return nil, errors.New("project not found")
+	}
+
+	isOwner := proj.UserID == userID
+	isMem, _ := s.memberRepo.IsMember(ctx, projectID, userID)
+	if !isOwner && !isMem {
+		return nil, errors.New("unauthorized to view members for this project")
+	}
+
+	return s.memberRepo.ListByProject(ctx, projectID)
 }

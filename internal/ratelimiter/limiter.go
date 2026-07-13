@@ -3,6 +3,7 @@ package ratelimiter
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	internalredis "limiter.io/internal/redis"
@@ -37,15 +38,35 @@ type RateLimiter interface {
 }
 
 type redisRateLimiter struct {
-	rc *internalredis.RedisClient
+	rc          *internalredis.RedisClient
+	mu          sync.Mutex
+	localTokens map[string]float64
+	localLast   map[string]time.Time
 }
 
 func NewRedisRateLimiter(rc *internalredis.RedisClient) RateLimiter {
-	return &redisRateLimiter{rc: rc}
+	return &redisRateLimiter{
+		rc:          rc,
+		localTokens: make(map[string]float64),
+		localLast:   make(map[string]time.Time),
+	}
 }
 
 func (rl *redisRateLimiter) Allow(ctx context.Context, key string, policy Policy) (Result, error) {
 	nowMs := time.Now().UnixNano() / int64(time.Millisecond)
+
+	// Try evaluating in Redis
+	res, err := rl.evalRedis(ctx, key, policy, nowMs)
+	if err == nil {
+		return res, nil
+	}
+
+	// Redis connection failed! Failover to Local RAM Cache (Failover Mode)
+	fmt.Printf("[FAILOVER] Redis offline: evaluating rate limit for key %s in local memory\n", key)
+	return rl.evalLocal(key, policy)
+}
+
+func (rl *redisRateLimiter) evalRedis(ctx context.Context, key string, policy Policy, nowMs int64) (Result, error) {
 
 	switch policy.Algorithm {
 	case TokenBucket:
@@ -205,6 +226,51 @@ func (rl *redisRateLimiter) Allow(ctx context.Context, key string, policy Policy
 		return Result{}, fmt.Errorf("unsupported algorithm: %s", policy.Algorithm)
 	}
 }
+
+func (rl *redisRateLimiter) evalLocal(key string, policy Policy) (Result, error) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	capacity := float64(policy.Limit)
+	if policy.Burst > 0 {
+		capacity = float64(policy.Burst)
+	}
+
+	// Local token bucket simulation
+	tokens, exists := rl.localTokens[key]
+	lastTime, timeExists := rl.localLast[key]
+
+	if !exists || !timeExists {
+		tokens = capacity
+		lastTime = now
+	}
+
+	elapsed := now.Sub(lastTime).Seconds()
+	refillRate := float64(policy.Limit) / policy.Period.Seconds()
+
+	tokens = tokens + (elapsed * refillRate)
+	if tokens > capacity {
+		tokens = capacity
+	}
+
+	rl.localLast[key] = now
+	allowed := false
+
+	if tokens >= 1.0 {
+		tokens -= 1.0
+		allowed = true
+	}
+	rl.localTokens[key] = tokens
+
+	return Result{
+		Allowed:   allowed,
+		Remaining: int(tokens),
+		Limit:     policy.Limit,
+		Reset:     policy.Period,
+	}, nil
+}
+
 func ParseAlgorithm(algo string) AlgorithmType {
 	switch algo {
 	case "token_bucket":

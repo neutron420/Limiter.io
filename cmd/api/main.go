@@ -92,14 +92,17 @@ func main() {
 	subRepo := postgres.NewSubscriptionRepository(db)
 	analRepo := postgres.NewAnalyticsRepository(db)
 	cacheRepo := repo_redis.NewCacheRepository(rc)
+	prtRepo := postgres.NewPasswordResetTokenRepository(db)
+	webhookRepo := postgres.NewWebhookEventRepository(db)
+	memberRepo := postgres.NewProjectMemberRepository(db)
 
 	// 8. Initialize Services
-	authService := services.NewAuthService(userRepo, rtRepo, subRepo, cacheRepo, cfg)
-	projService := services.NewProjectService(projRepo, subRepo)
-	keyService := services.NewAPIKeyService(keyRepo, projRepo, subRepo, cacheRepo)
-	policyService := services.NewPolicyService(ruleRepo, projRepo, subRepo)
+	authService := services.NewAuthService(userRepo, rtRepo, subRepo, cacheRepo, prtRepo, cfg)
+	projService := services.NewProjectService(projRepo, subRepo, memberRepo, userRepo)
+	keyService := services.NewAPIKeyService(keyRepo, projRepo, subRepo, cacheRepo, memberRepo)
+	policyService := services.NewPolicyService(ruleRepo, projRepo, subRepo, memberRepo)
 	subService := services.NewSubscriptionService(subRepo, cacheRepo)
-	analService := services.NewAnalyticsService(analRepo, projRepo)
+	analService := services.NewAnalyticsService(analRepo, projRepo, memberRepo)
 
 	// Rate limiting engine
 	redisLimiter := ratelimiter.NewRedisRateLimiter(rc)
@@ -117,7 +120,7 @@ func main() {
 	analHandler := handlers.NewAnalyticsHandler(analService)
 	healthHandler := handlers.NewHealthHandler(db, rc.Client, cfg)
 	wsHandler := handlers.NewWSHandler(hub, projRepo)
-	billingHandler := handlers.NewBillingHandler(cfg, userRepo, subService)
+	billingHandler := handlers.NewBillingHandler(cfg, userRepo, subService, webhookRepo)
 
 	// 10. Start Gin Engine
 	if cfg.Env == "production" {

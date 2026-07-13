@@ -14,28 +14,46 @@ import (
 type AnalyticsService interface {
 	GetProjectStats(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, duration time.Duration) (map[string]interface{}, error)
 	GetProjectLogs(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, limit, offset int) ([]models.AnalyticsLog, error)
+	GetTimeSeries(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, duration time.Duration, bucket string) ([]map[string]interface{}, error)
 }
 
 type analyticsService struct {
 	analyticsRepo repository.AnalyticsRepository
 	projectRepo   repository.ProjectRepository
+	memberRepo    repository.ProjectMemberRepository
 }
 
-func NewAnalyticsService(analyticsRepo repository.AnalyticsRepository, projectRepo repository.ProjectRepository) AnalyticsService {
+func NewAnalyticsService(
+	analyticsRepo repository.AnalyticsRepository,
+	projectRepo repository.ProjectRepository,
+	memberRepo repository.ProjectMemberRepository,
+) AnalyticsService {
 	return &analyticsService{
 		analyticsRepo: analyticsRepo,
 		projectRepo:   projectRepo,
+		memberRepo:    memberRepo,
 	}
 }
 
-func (s *analyticsService) GetProjectStats(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, duration time.Duration) (map[string]interface{}, error) {
-	// Verify project ownership
+func (s *analyticsService) checkProjectAccess(ctx context.Context, userID, projectID uuid.UUID) error {
 	proj, err := s.projectRepo.GetByID(ctx, projectID)
 	if err != nil {
-		return nil, errors.New("project not found")
+		return errors.New("project not found")
 	}
-	if proj.UserID != userID {
-		return nil, errors.New("unauthorized to access this project's analytics")
+	isOwner := proj.UserID == userID
+	isMember := false
+	if !isOwner {
+		isMember, _ = s.memberRepo.IsMember(ctx, projectID, userID)
+	}
+	if !isOwner && !isMember {
+		return errors.New("unauthorized to access this project's analytics")
+	}
+	return nil
+}
+
+func (s *analyticsService) GetProjectStats(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, duration time.Duration) (map[string]interface{}, error) {
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
 	}
 
 	end := time.Now()
@@ -45,13 +63,8 @@ func (s *analyticsService) GetProjectStats(ctx context.Context, userID uuid.UUID
 }
 
 func (s *analyticsService) GetProjectLogs(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, limit, offset int) ([]models.AnalyticsLog, error) {
-	// Verify project ownership
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return nil, errors.New("project not found")
-	}
-	if proj.UserID != userID {
-		return nil, errors.New("unauthorized")
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
 	}
 
 	if limit <= 0 || limit > 100 {
@@ -62,4 +75,15 @@ func (s *analyticsService) GetProjectLogs(ctx context.Context, userID uuid.UUID,
 	}
 
 	return s.analyticsRepo.GetLogs(ctx, projectID, limit, offset)
+}
+
+func (s *analyticsService) GetTimeSeries(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, duration time.Duration, bucket string) ([]map[string]interface{}, error) {
+	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+		return nil, err
+	}
+
+	end := time.Now()
+	start := end.Add(-duration)
+
+	return s.analyticsRepo.GetTimeSeries(ctx, projectID, start, end, bucket)
 }

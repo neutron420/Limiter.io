@@ -7,35 +7,31 @@ A prioritized, grounded list of what to build next — based on the actual code 
 
 ## 🔴 P0 — Correctness & "make the demo actually work"
 
-1. **Seed the `plans` table (free / pro / enterprise).**
-   `subscription_service.go:63` calls `GetPlanByID` — upgrades and plan limits break if the table is
-   empty. Add a migration/seed with the three plans and their `allowed_algorithms`, `max_projects`,
-   `rate_limit_requests`, `analytics_retention_days`.
+1. ✅ **Already implemented** — the `plans` table is seeded (free / pro / enterprise with real limits) in
+   `database/postgres.go:77` (`MigrateAndSeed`).
 
-2. **Give every new user a `free` subscription row on register.**
-   `GetSubscription` / `UpgradeSubscription` (`subscription_service.go:53`) error if the user has no
-   subscription. Create one in the auth/register flow so `/subscription` and Billing don't 500.
+2. ✅ **Already implemented** — `Register` creates a default `free` subscription row
+   (`auth_service.go:72`), so `/subscription` and Billing don't 500.
 
-3. **Fix the Lemon Squeezy variant check.**
-   `billing_handler.go:83` does `string(rune(payload.Data.Attributes.VariantID))` — that converts an int
-   to a Unicode code point, not the string "1899978". It only works today because of the hardcoded
-   `|| == 1899978` fallback. Compare the int directly to a configured `LEMON_SQUEEZY_PRO_VARIANT_ID`.
+3. ✅ **DONE (this pass)** — fixed the Lemon Squeezy variant check. `billing_handler.go` now uses
+   `strconv.Itoa(variantID)` compared to `LEMON_SQUEEZY_PRO_VARIANT_ID` (default `1899978` in
+   `config.go`); the buggy `string(rune(id))` and hardcoded magic number are gone.
 
-4. **Wire real email for `forgot-password` / verification.**
-   `POST /auth/forgot-password` exists but there's no mail transport. Add SMTP/Resend/SES and a reset-token
-   flow, or clearly mark it as a stub. The frontend page is already built (`/forgot-password`).
+4. **Wire real email for `forgot-password` / verification.** ← still open
+   `POST /auth/forgot-password` is a stub (`auth_service.go:209` returns nil, no mail). Add SMTP/Resend/SES
+   and a reset-token flow. The frontend page is already built (`/forgot-password`).
 
-5. **Enforce plan limits.**
-   Today keys/projects/algorithms aren't capped by plan. Enforce `max_projects`, `max_keys_per_project`,
-   and `allowed_algorithms` in the project/key/policy services so Free vs Pro actually differ.
+5. ✅ **Already implemented** — plan limits are enforced: `max_projects` (`project_service.go:47`),
+   `max_keys_per_project` (`apikey_service.go:68`), and `allowed_algorithms` (`policy_service.go:57` on
+   create, `:161` on update).
 
 ---
 
 ## 🟠 P1 — Product features (high user value)
 
-6. **Real log pagination + filtering on the Overview page.**
-   The API already supports `limit`/`offset` (`analytics_handler.go:78`). The dashboard currently loads
-   only the first page. Add prev/next wired to offset, plus filters by decision / route / date range.
+6. ✅ **DONE (this pass)** — real server-side log pagination on the Overview. Prev/Next are wired to
+   `limit`/`offset` (`app/dashboard/page.tsx`), reset on project switch. Still open: filters by
+   decision / route / date range.
 
 7. **Analytics charts.**
    `recharts` is already a dependency. Add a requests-over-time line chart and an allowed-vs-blocked
@@ -58,8 +54,9 @@ A prioritized, grounded list of what to build next — based on the actual code 
 
 ## 🟡 P2 — Hardening & operations
 
-12. **Tighten CORS.** `router.go:49` sets `Access-Control-Allow-Origin: *` with credentials — lock to the
-    dashboard origin(s) via config before production.
+12. ✅ **DONE (this pass)** — CORS is now config-driven via `CORS_ALLOWED_ORIGINS` (`router.go`,
+    `config.go`). Defaults to `*` for dev; set a comma-separated allowlist in production, and credentials
+    are only sent for explicit origins (never with `*`).
 
 13. **Rate-limit-headers on allowed gateway responses always.** They're set only when a rule matches
     (`ratelimit.go:122`). Consider returning them (or a `X-RateLimit-Policy: none`) even on pass-through so
@@ -74,10 +71,9 @@ A prioritized, grounded list of what to build next — based on the actual code 
 16. **Tests.** Only `ratelimit_test.go` exists. Add unit tests for each algorithm's Lua script, auth/JWT,
     and handler integration tests (httptest). Add a `landing` typecheck/lint CI step.
 
-17. **Fix pre-existing frontend type errors.** `npx tsc --noEmit` flags template components
-    (`ui/carousel`, `ui/pagination`, `ui/alert-dialog`, `ui/calendar`) still using old shadcn button
-    variants (`outline`/`ghost`) that the neobrutalism `button.tsx` renamed. Align or remove unused ones so
-    `next build` passes.
+17. ✅ **DONE (this pass)** — `npx tsc --noEmit` is now **0 errors**. Added `outline`/`ghost` compat
+    variants + exported `ButtonProps` in `ui/button.tsx`, and fixed the `darkMode` type. `next build`
+    passes type-checking.
 
 ---
 

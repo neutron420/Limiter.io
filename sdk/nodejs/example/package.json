@@ -1,0 +1,12 @@
+{
+  "name": "nodejs-sdk-example",
+  "version": "1.0.0",
+  "description": "Example Node.js app using Limiter.io Node SDK client",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

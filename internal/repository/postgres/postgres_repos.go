@@ -101,6 +101,15 @@ func (r *projectRepo) ListByUserID(ctx context.Context, userID uuid.UUID) ([]mod
 	return projects, err
 }
 
+func (r *projectRepo) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]models.Project, error) {
+	var projects []models.Project
+	if len(ids) == 0 {
+		return projects, nil
+	}
+	err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&projects).Error
+	return projects, err
+}
+
 func (r *projectRepo) CountByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&models.Project{}).Where("user_id = ?", userID).Count(&count).Error
@@ -300,4 +309,176 @@ func (r *analyticsRepo) GetLogs(ctx context.Context, projectID uuid.UUID, limit,
 		Offset(offset).
 		Find(&logs).Error
 	return logs, err
+}
+
+func (r *analyticsRepo) GetTimeSeries(ctx context.Context, projectID uuid.UUID, start, end time.Time, bucket string) ([]map[string]interface{}, error) {
+	validBuckets := map[string]bool{
+		"minute": true,
+		"hour":   true,
+		"day":    true,
+	}
+	if !validBuckets[bucket] {
+		bucket = "hour"
+	}
+
+	type DBResult struct {
+		BucketTime time.Time `gorm:"column:bucket_time"`
+		Decision   string    `gorm:"column:decision"`
+		Count      int64     `gorm:"column:count"`
+	}
+	var dbResults []DBResult
+
+	// postgres date_trunc
+	query := `
+		SELECT date_trunc(?, timestamp) as bucket_time, decision, COUNT(*) as count
+		FROM analytics_logs
+		WHERE project_id = ? AND timestamp BETWEEN ? AND ?
+		GROUP BY bucket_time, decision
+		ORDER BY bucket_time ASC
+	`
+	err := r.db.WithContext(ctx).Raw(query, bucket, projectID, start, end).Scan(&dbResults).Error
+	if err != nil {
+		return nil, err
+	}
+
+	timeMap := make(map[time.Time]map[string]interface{})
+	for _, res := range dbResults {
+		if _, ok := timeMap[res.BucketTime]; !ok {
+			timeMap[res.BucketTime] = map[string]interface{}{
+				"time":    res.BucketTime.Format(time.RFC3339),
+				"allowed": int64(0),
+				"blocked": int64(0),
+			}
+		}
+		if res.Decision == "allowed" {
+			timeMap[res.BucketTime]["allowed"] = res.Count
+		} else if res.Decision == "blocked" {
+			timeMap[res.BucketTime]["blocked"] = res.Count
+		}
+	}
+
+	var results []map[string]interface{}
+	seen := make(map[time.Time]bool)
+	for _, res := range dbResults {
+		if seen[res.BucketTime] {
+			continue
+		}
+		seen[res.BucketTime] = true
+		results = append(results, timeMap[res.BucketTime])
+	}
+
+	return results, nil
+}
+
+func (r *analyticsRepo) CountRequestsByProjects(ctx context.Context, projectIDs []uuid.UUID, start, end time.Time) (int64, error) {
+	var count int64
+	if len(projectIDs) == 0 {
+		return 0, nil
+	}
+	err := r.db.WithContext(ctx).Model(&models.AnalyticsLog{}).
+		Where("project_id IN ? AND timestamp BETWEEN ? AND ?", projectIDs, start, end).
+		Count(&count).Error
+	return count, err
+}
+
+// Password Reset Token Repo
+type passwordResetTokenRepo struct {
+	db *gorm.DB
+}
+
+func NewPasswordResetTokenRepository(db *gorm.DB) repository.PasswordResetTokenRepository {
+	return &passwordResetTokenRepo{db: db}
+}
+
+func (r *passwordResetTokenRepo) Create(ctx context.Context, t *models.PasswordResetToken) error {
+	return r.db.WithContext(ctx).Create(t).Error
+}
+
+func (r *passwordResetTokenRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*models.PasswordResetToken, error) {
+	var t models.PasswordResetToken
+	err := r.db.WithContext(ctx).First(&t, "token_hash = ? AND expires_at > ? AND used_at IS NULL", tokenHash, time.Now()).Error
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (r *passwordResetTokenRepo) MarkUsed(ctx context.Context, id uuid.UUID) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).Model(&models.PasswordResetToken{}).
+		Where("id = ?", id).
+		Update("used_at", &now).Error
+}
+
+func (r *passwordResetTokenRepo) DeleteByUserID(ctx context.Context, userID uuid.UUID) error {
+	return r.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&models.PasswordResetToken{}).Error
+}
+
+// Webhook Event Repo
+type webhookEventRepo struct {
+	db *gorm.DB
+}
+
+func NewWebhookEventRepository(db *gorm.DB) repository.WebhookEventRepository {
+	return &webhookEventRepo{db: db}
+}
+
+func (r *webhookEventRepo) Create(ctx context.Context, e *models.WebhookEvent) error {
+	return r.db.WithContext(ctx).Create(e).Error
+}
+
+func (r *webhookEventRepo) ListRecent(ctx context.Context, limit int) ([]models.WebhookEvent, error) {
+	var events []models.WebhookEvent
+	err := r.db.WithContext(ctx).Order("received_at DESC").Limit(limit).Find(&events).Error
+	return events, err
+}
+
+func (r *webhookEventRepo) ListByEmail(ctx context.Context, email string, limit int) ([]models.WebhookEvent, error) {
+	var events []models.WebhookEvent
+	err := r.db.WithContext(ctx).Where("email = ?", email).Order("received_at DESC").Limit(limit).Find(&events).Error
+	return events, err
+}
+
+// Project Member Repo
+type projectMemberRepo struct {
+	db *gorm.DB
+}
+
+func NewProjectMemberRepository(db *gorm.DB) repository.ProjectMemberRepository {
+	return &projectMemberRepo{db: db}
+}
+
+func (r *projectMemberRepo) Add(ctx context.Context, m *models.ProjectMember) error {
+	return r.db.WithContext(ctx).Create(m).Error
+}
+
+func (r *projectMemberRepo) Remove(ctx context.Context, projectID, userID uuid.UUID) error {
+	return r.db.WithContext(ctx).
+		Where("project_id = ? AND user_id = ?", projectID, userID).
+		Delete(&models.ProjectMember{}).Error
+}
+
+func (r *projectMemberRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.ProjectMember, error) {
+	var members []models.ProjectMember
+	err := r.db.WithContext(ctx).Where("project_id = ?", projectID).Find(&members).Error
+	return members, err
+}
+
+func (r *projectMemberRepo) ListProjectIDsByUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	var projectIDs []uuid.UUID
+	err := r.db.WithContext(ctx).Model(&models.ProjectMember{}).
+		Where("user_id = ?", userID).
+		Pluck("project_id", &projectIDs).Error
+	return projectIDs, err
+}
+
+func (r *projectMemberRepo) IsMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&models.ProjectMember{}).
+		Where("project_id = ? AND user_id = ?", projectID, userID).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
