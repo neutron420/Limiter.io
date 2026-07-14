@@ -15,18 +15,62 @@ import (
 type SubscriptionService interface {
 	GetSubscription(ctx context.Context, userID uuid.UUID) (*models.Subscription, error)
 	UpgradeSubscription(ctx context.Context, userID uuid.UUID, req dto.UpgradeSubscriptionRequest) (*models.Subscription, error)
+	GetUsage(ctx context.Context, userID uuid.UUID) (map[string]interface{}, error)
 }
 
 type subscriptionService struct {
-	subRepo   repository.SubscriptionRepository
-	cacheRepo repository.CacheRepository
+	subRepo     repository.SubscriptionRepository
+	cacheRepo   repository.CacheRepository
+	projectRepo repository.ProjectRepository
+	analRepo    repository.AnalyticsRepository
 }
 
-func NewSubscriptionService(subRepo repository.SubscriptionRepository, cacheRepo repository.CacheRepository) SubscriptionService {
+func NewSubscriptionService(
+	subRepo repository.SubscriptionRepository,
+	cacheRepo repository.CacheRepository,
+	projectRepo repository.ProjectRepository,
+	analRepo repository.AnalyticsRepository,
+) SubscriptionService {
 	return &subscriptionService{
-		subRepo:   subRepo,
-		cacheRepo: cacheRepo,
+		subRepo:     subRepo,
+		cacheRepo:   cacheRepo,
+		projectRepo: projectRepo,
+		analRepo:    analRepo,
 	}
+}
+
+// GetUsage meters total gateway requests across the user's projects in the
+// current calendar month — the basis for usage-based billing.
+func (s *subscriptionService) GetUsage(ctx context.Context, userID uuid.UUID) (map[string]interface{}, error) {
+	sub, err := s.subRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	projects, err := s.projectRepo.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, 0, len(projects))
+	for _, p := range projects {
+		ids = append(ids, p.ID)
+	}
+
+	now := time.Now()
+	periodStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
+	var used int64
+	if len(ids) > 0 {
+		used, _ = s.analRepo.CountRequestsByProjects(ctx, ids, periodStart, now)
+	}
+
+	return map[string]interface{}{
+		"plan_id":       sub.PlanID,
+		"requests_used": used,
+		"projects":      len(ids),
+		"period_start":  periodStart,
+		"period_end":    now,
+	}, nil
 }
 
 func (s *subscriptionService) GetSubscription(ctx context.Context, userID uuid.UUID) (*models.Subscription, error) {

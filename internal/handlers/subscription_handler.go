@@ -46,6 +46,24 @@ func (h *SubscriptionHandler) Get(c *gin.Context) {
 	})
 }
 
+// GetUsage returns the account's metered request usage for the current period.
+func (h *SubscriptionHandler) GetUsage(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	usage, err := h.subService.GetUsage(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, usage)
+}
+
 func (h *SubscriptionHandler) Upgrade(c *gin.Context) {
 	userIDStr, exists := c.Get("UserID")
 	if !exists {

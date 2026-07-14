@@ -101,7 +101,7 @@ func main() {
 	projService := services.NewProjectService(projRepo, subRepo, memberRepo, userRepo)
 	keyService := services.NewAPIKeyService(keyRepo, projRepo, subRepo, cacheRepo, memberRepo)
 	policyService := services.NewPolicyService(ruleRepo, projRepo, subRepo, memberRepo)
-	subService := services.NewSubscriptionService(subRepo, cacheRepo)
+	subService := services.NewSubscriptionService(subRepo, cacheRepo, projRepo, analRepo)
 	analService := services.NewAnalyticsService(analRepo, projRepo, memberRepo)
 
 	// Rate limiting engine

@@ -88,8 +88,8 @@ func (h *WSHandler) Connect(c *gin.Context) {
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
-			// Disconnect detected
-			break
+			
+		break
 		}
 	}
 }

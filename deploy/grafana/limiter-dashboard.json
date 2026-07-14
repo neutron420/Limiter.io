@@ -1,0 +1,89 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus scraping Limiter.io /metrics",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "title": "Limiter.io — Rate Limiting Platform",
+  "tags": ["limiter", "rate-limiting"],
+  "timezone": "browser",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Rate limiter decisions/sec (allowed vs blocked)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (decision) (rate(rate_limiter_decisions_total[1m]))",
+          "legendFormat": "{{decision}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "HTTP request rate by status",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_requests_total[1m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Redis evaluation latency (p50/p95/p99)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(redis_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(redis_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(redis_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Kafka publish latency (p95)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(kafka_publish_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Blocked ratio (last 5m)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "percentunit" } },
+      "targets": [
+        {
+          "expr": "sum(rate(rate_limiter_decisions_total{decision=\"blocked\"}[5m])) / clamp_min(sum(rate(rate_limiter_decisions_total[5m])), 1)",
+          "legendFormat": "blocked ratio",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

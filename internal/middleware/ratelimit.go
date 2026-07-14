@@ -95,8 +95,10 @@ func RateLimit(
 			}
 		}
 
-		// If no rule matches, allow request (default open policy)
+		// If no rule matches, allow request (default open policy).
+		// Signal to clients that no rate-limit policy applied to this route.
 		if matchedRule == nil {
+			c.Header("X-RateLimit-Policy", "none")
 			c.Next()
 			// Record analytics after response is written
 			recordAnalytics(c, projectID, apiKeyID, reqID, "allowed", "", start, analyticsChan, hub)

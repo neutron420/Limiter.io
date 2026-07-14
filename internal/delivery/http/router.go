@@ -17,6 +17,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.uber.org/zap"
 )
 
 // parseCORSOrigins splits the comma-separated CORS_ALLOWED_ORIGINS config into
@@ -74,6 +75,7 @@ func SetupRouter(c RouterConfig) {
 	// Global Middlewares
 	c.Engine.Use(middleware.RequestID())
 	c.Engine.Use(middleware.Recovery(nil)) // nil logger will default to internal behavior or standard out
+	c.Engine.Use(middleware.Logger(zap.L())) // structured per-request logging (uses global zap logger)
 	c.Engine.Use(middleware.Metrics())
 
 	// CORS Setup — origins are configurable via CORS_ALLOWED_ORIGINS
@@ -169,6 +171,7 @@ func SetupRouter(c RouterConfig) {
 
 			// Subscription
 			private.GET("/subscription", c.SubHandler.Get)
+			private.GET("/subscription/usage", c.SubHandler.GetUsage)
 			private.POST("/subscription/upgrade", c.SubHandler.Upgrade)
 
 			// Billing webhooks audit log
