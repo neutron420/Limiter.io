@@ -9,6 +9,10 @@ import { RequestChart } from "@/components/dashboard/analytics/RequestChart"
 import { RatioChart } from "@/components/dashboard/analytics/RatioChart"
 import { RoutesBreakdown } from "@/components/dashboard/analytics/RoutesBreakdown"
 import { LatencyPercentiles } from "@/components/dashboard/analytics/LatencyPercentiles"
+import { IpCountryBreakdown } from "@/components/dashboard/analytics/IpCountryBreakdown"
+import { SecurityAnalytics } from "@/components/dashboard/analytics/SecurityAnalytics"
+import { ApiKeyBreakdown } from "@/components/dashboard/analytics/ApiKeyBreakdown"
+import { AuditLogsExplorer } from "@/components/dashboard/analytics/AuditLogsExplorer"
 
 interface TimeSeriesItem {
   time: string
@@ -46,6 +50,7 @@ export default function AnalyticsPage() {
   const [logs, setLogs] = React.useState<LogItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const [activeTab, setActiveTab] = React.useState("overview")
 
   const loadData = React.useCallback(async () => {
     if (!current) return
@@ -132,6 +137,29 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b-2 border-foreground pb-2 select-none">
+        {[
+          { id: "overview", label: "Overview" },
+          { id: "routes", label: "Routes & Credentials" },
+          { id: "security", label: "Security & Rules" },
+          { id: "geolocation", label: "IPs & Countries" },
+          { id: "logs", label: "Audit Log Explorer" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-1.5 text-[10px] font-bold uppercase transition-all cursor-pointer border-2 ${
+              activeTab === tab.id
+                ? "bg-foreground text-background border-foreground shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] translate-x-[-1px] translate-y-[-1px]"
+                : "hover:bg-muted/10 text-foreground border-transparent"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {loading && timeseries.length === 0 ? (
         <div className="py-20 flex justify-center">
           <Spinner label="FETCHING AUDIT TRAIL TELEMETRY" />
@@ -142,27 +170,48 @@ export default function AnalyticsPage() {
         </div>
       ) : (
         <>
-          {/* Key Stat Cards Grid Component */}
-          <StatsGrid
-            total={totalCount}
-            allowed={allowedCount}
-            blocked={blockedCount}
-            avgLatency={avgLatency}
-          />
+          {activeTab === "overview" && (
+            <>
+              {/* Key Stat Cards Grid Component */}
+              <StatsGrid
+                total={totalCount}
+                allowed={allowedCount}
+                blocked={blockedCount}
+                avgLatency={avgLatency}
+              />
 
-          {/* Primary Charts Layout (Requests Over Time & Ratio Pie) */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <RequestChart timeseries={timeseries} bucket={bucket} />
-            <RatioChart allowed={allowedCount} blocked={blockedCount} />
-          </div>
+              {/* Primary Charts Layout (Requests Over Time & Ratio Pie) */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <RequestChart timeseries={timeseries} bucket={bucket} />
+                <RatioChart allowed={allowedCount} blocked={blockedCount} />
+              </div>
+            </>
+          )}
 
-          {/* Extended Analytics Layout (Routes Breakdown & Latency Percentiles) */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <RoutesBreakdown logs={logs} />
-            <LatencyPercentiles logs={logs} />
-          </div>
+          {activeTab === "routes" && (
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <RoutesBreakdown logs={logs} />
+                <LatencyPercentiles logs={logs} />
+              </div>
+              <ApiKeyBreakdown logs={logs} />
+            </div>
+          )}
+
+          {activeTab === "security" && (
+            <SecurityAnalytics logs={logs} />
+          )}
+
+          {activeTab === "geolocation" && (
+            <IpCountryBreakdown logs={logs} />
+          )}
+
+          {activeTab === "logs" && (
+            <AuditLogsExplorer logs={logs} />
+          )}
         </>
       )}
     </div>
   )
 }
+
