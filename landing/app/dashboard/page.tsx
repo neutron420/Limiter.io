@@ -22,7 +22,7 @@ import { useProject } from "@/lib/project-context"
 import { useAnalyticsWS } from "@/hooks/use-analytics-ws"
 import type { AnalyticsLog, Stats } from "@/lib/types"
 
-const DURATIONS = ["24h", "7d", "30d"] as const
+const DURATIONS = ["24h", "7d", "30d", "all"] as const
 type Duration = (typeof DURATIONS)[number]
 
 const PAGE_SIZE = 50
@@ -63,14 +63,14 @@ const columns: ColumnDef<AnalyticsLog>[] = [
     header: "Latency",
     cell: ({ row }) => <span className="tabular-nums">{row.original.latency_ms}ms</span>,
   },
-]
-
-export default function OverviewPage() {
+ ]
+ 
+ export default function OverviewPage() {
   const router = useRouter()
   const { current, loading: projLoading, projects } = useProject()
   const projectId = current?.id ?? null
-
-  const [duration, setDuration] = React.useState<Duration>("24h")
+ 
+  const [duration, setDuration] = React.useState<Duration>("all")
   const [stats, setStats] = React.useState<Stats | null>(null)
   const [statsLoading, setStatsLoading] = React.useState(false)
   const [logs, setLogs] = React.useState<AnalyticsLog[]>([])
@@ -148,7 +148,7 @@ export default function OverviewPage() {
         <div>
           <h1 className="text-lg font-bold uppercase tracking-widest">Overview</h1>
           <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-            {current.name} — traffic in the last {duration}
+            {current.name} — {duration === "all" ? "overall traffic" : `traffic in the last ${duration}`}
           </p>
         </div>
         <div className="flex items-center border-2 border-foreground">
@@ -160,7 +160,7 @@ export default function OverviewPage() {
                 duration === d ? "bg-[#ea580c] text-white" : "hover:bg-muted/10"
               }`}
             >
-              {d}
+              {d === "all" ? "all time" : d}
             </button>
           ))}
         </div>

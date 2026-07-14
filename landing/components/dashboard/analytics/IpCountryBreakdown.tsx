@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Globe, ShieldAlert } from "lucide-react"
+import { Globe, ShieldAlert, Monitor, MapPin, Loader2 } from "lucide-react"
 import { Panel, PanelHeader } from "@/components/dashboard/kit"
 
 interface LogItem {
@@ -71,7 +71,7 @@ export function getFallbackCountry(cleanIp: string): CountryInfo {
 export function getCountryFromIp(ip: string): CountryInfo {
   const clean = (ip || "").trim()
   if (isLocalIp(clean)) {
-    return { name: "Local Dev", flag: "💻", code: "LOCAL" }
+    return { name: "Local Dev", flag: "LOCAL", code: "LOCAL" }
   }
   return getFallbackCountry(clean)
 }
@@ -91,7 +91,7 @@ export function IpCountryBreakdown({ logs }: IpCountryBreakdownProps) {
       if (isLocalIp(ip)) {
         setResolvedCountries(prev => ({
           ...prev,
-          [ip]: { name: "Local Dev", flag: "💻", code: "LOCAL" }
+          [ip]: { name: "Local Dev", flag: "LOCAL", code: "LOCAL" }
         }))
         return
       }
@@ -143,7 +143,7 @@ export function IpCountryBreakdown({ logs }: IpCountryBreakdownProps) {
 
     return Object.entries(stats)
       .map(([ip, data]) => {
-        const country = resolvedCountries[ip] || { name: "Resolving...", flag: "⏳", code: "..." }
+        const country = resolvedCountries[ip] || { name: "Resolving...", flag: "LOADING", code: "..." }
         return {
           ip,
           country,
@@ -207,7 +207,15 @@ export function IpCountryBreakdown({ logs }: IpCountryBreakdownProps) {
                   <tr key={item.ip} className="border-b border-foreground/10 hover:bg-muted/5 font-mono">
                     <td className="py-2 font-bold">{item.ip}</td>
                     <td className="py-2">
-                      <span className="mr-1">{item.country.flag}</span>
+                      <span className="mr-1.5 inline-flex items-center">
+                        {item.country.code === "LOCAL" ? (
+                          <Monitor className="h-3.5 w-3.5 text-[#ea580c]" />
+                        ) : item.country.code === "..." ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                        ) : (
+                          <MapPin className="h-3.5 w-3.5 text-[#ea580c]" />
+                        )}
+                      </span>
                       {item.country.name}
                     </td>
                     <td className="py-2 text-right font-bold">{item.total}</td>
@@ -251,7 +259,13 @@ export function IpCountryBreakdown({ logs }: IpCountryBreakdownProps) {
                 {countryStats.map((item) => (
                   <tr key={item.code} className="border-b border-foreground/10 hover:bg-muted/5 font-mono">
                     <td className="py-2 font-bold">
-                      <span className="mr-2 text-sm">{item.flag}</span>
+                      <span className="mr-2 inline-flex items-center">
+                        {item.code === "LOCAL" ? (
+                          <Monitor className="h-4 w-4 text-[#ea580c]" />
+                        ) : (
+                          <MapPin className="h-4 w-4 text-[#ea580c]" />
+                        )}
+                      </span>
                       {item.name}
                     </td>
                     <td className="py-2 font-bold uppercase text-muted-foreground">{item.code}</td>

@@ -43,8 +43,8 @@ interface LogItem {
 
 export default function AnalyticsPage() {
   const { current } = useProject()
-  const [duration, setDuration] = React.useState("24h")
-  const [bucket, setBucket] = React.useState("hour")
+  const [duration, setDuration] = React.useState("all")
+  const [bucket, setBucket] = React.useState("day")
   const [stats, setStats] = React.useState<StatsData>({})
   const [timeseries, setTimeseries] = React.useState<TimeSeriesItem[]>([])
   const [logs, setLogs] = React.useState<LogItem[]>([])
@@ -91,6 +91,7 @@ export default function AnalyticsPage() {
     if (d === "24h") setBucket("hour")
     else if (d === "7d") setBucket("hour")
     else if (d === "30d") setBucket("day")
+    else if (d === "all") setBucket("day")
   }
 
   if (!current) {
@@ -121,7 +122,7 @@ export default function AnalyticsPage() {
 
         {/* Start stark selection buttons */}
         <div className="flex items-center gap-2 border-2 border-foreground bg-background p-1 select-none w-fit">
-          {["24h", "7d", "30d"].map((d) => (
+          {["24h", "7d", "30d", "all"].map((d) => (
             <button
               key={d}
               onClick={() => handleDurationChange(d)}
@@ -131,7 +132,7 @@ export default function AnalyticsPage() {
                   : "hover:bg-muted/10 text-foreground border-2 border-transparent"
               }`}
             >
-              {d === "24h" ? "24 HOURS" : d === "7d" ? "7 DAYS" : "30 DAYS"}
+              {d === "24h" ? "24 HOURS" : d === "7d" ? "7 DAYS" : d === "30d" ? "30 DAYS" : "ALL TIME"}
             </button>
           ))}
         </div>

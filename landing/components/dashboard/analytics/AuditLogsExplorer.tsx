@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Search, Filter, ShieldAlert, FileText, ChevronRight, X, Clock, HelpCircle } from "lucide-react"
+import { Search, Filter, ShieldAlert, FileText, ChevronRight, X, Clock, HelpCircle, Monitor, MapPin } from "lucide-react"
 import { Panel, PanelHeader } from "@/components/dashboard/kit"
-import { getCountryFromIp } from "./IpCountryBreakdown"
+import { getCountryFromIp, isLocalIp } from "./IpCountryBreakdown"
 
 interface LogItem {
   id: string
@@ -145,7 +145,13 @@ export function AuditLogsExplorer({ logs }: AuditLogsExplorerProps) {
                       </td>
                       <td className="p-3 font-bold truncate max-w-[200px]">{log.route}</td>
                       <td className="p-3 text-muted-foreground">
-                        <span className="mr-1">{country.flag}</span>
+                        <span className="mr-1.5 inline-flex items-center align-middle">
+                          {isLocalIp(log.client_ip) ? (
+                            <Monitor className="h-3.5 w-3.5 text-[#ea580c]" />
+                          ) : (
+                            <MapPin className="h-3.5 w-3.5 text-[#ea580c]" />
+                          )}
+                        </span>
                         {log.client_ip}
                       </td>
                       <td className="p-3 text-right font-bold">{log.latency_ms}ms</td>
@@ -204,7 +210,13 @@ export function AuditLogsExplorer({ logs }: AuditLogsExplorerProps) {
               <div>
                 <span className="text-muted-foreground block text-[9px] font-bold">Client Host IP</span>
                 <span className="font-bold flex items-center gap-1 mt-0.5">
-                  <span>{getCountryFromIp(selectedLog.client_ip).flag}</span>
+                  <span className="inline-flex items-center">
+                    {isLocalIp(selectedLog.client_ip) ? (
+                      <Monitor className="h-3.5 w-3.5 text-[#ea580c]" />
+                    ) : (
+                      <MapPin className="h-3.5 w-3.5 text-[#ea580c]" />
+                    )}
+                  </span>
                   {selectedLog.client_ip}
                 </span>
               </div>

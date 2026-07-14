@@ -34,21 +34,26 @@ func (h *AnalyticsHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	// Parse duration query parameter (e.g. 24h, 7d, 90d)
+	// Parse duration query parameter (e.g. 24h, 7d, 90d, all)
 	durationStr := c.DefaultQuery("duration", "24h")
-	// Convert 'd' suffix to hours since time.ParseDuration doesn't support 'd'
-	if len(durationStr) > 1 && durationStr[len(durationStr)-1] == 'd' {
-		daysStr := durationStr[:len(durationStr)-1]
-		days, err := strconv.Atoi(daysStr)
-		if err == nil {
-			durationStr = strconv.Itoa(days*24) + "h"
+	var duration time.Duration
+	if durationStr == "all" {
+		duration = 10 * 365 * 24 * time.Hour
+	} else {
+		// Convert 'd' suffix to hours since time.ParseDuration doesn't support 'd'
+		if len(durationStr) > 1 && durationStr[len(durationStr)-1] == 'd' {
+			daysStr := durationStr[:len(durationStr)-1]
+			days, err := strconv.Atoi(daysStr)
+			if err == nil {
+				durationStr = strconv.Itoa(days*24) + "h"
+			}
 		}
-	}
-
-	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid duration format. Examples: 24h, 7d, 30d"})
-		return
+		var err error
+		duration, err = time.ParseDuration(durationStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid duration format. Examples: 24h, 7d, 30d, all"})
+			return
+		}
 	}
 
 	userID := uuid.MustParse(userIDStr.(string))
@@ -113,18 +118,23 @@ func (h *AnalyticsHandler) GetTimeSeries(c *gin.Context) {
 	}
 
 	durationStr := c.DefaultQuery("duration", "24h")
-	if len(durationStr) > 1 && durationStr[len(durationStr)-1] == 'd' {
-		daysStr := durationStr[:len(durationStr)-1]
-		days, err := strconv.Atoi(daysStr)
-		if err == nil {
-			durationStr = strconv.Itoa(days*24) + "h"
+	var duration time.Duration
+	if durationStr == "all" {
+		duration = 10 * 365 * 24 * time.Hour
+	} else {
+		if len(durationStr) > 1 && durationStr[len(durationStr)-1] == 'd' {
+			daysStr := durationStr[:len(durationStr)-1]
+			days, err := strconv.Atoi(daysStr)
+			if err == nil {
+				durationStr = strconv.Itoa(days*24) + "h"
+			}
 		}
-	}
-
-	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid duration format. Examples: 24h, 7d, 30d"})
-		return
+		var err error
+		duration, err = time.ParseDuration(durationStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid duration format. Examples: 24h, 7d, 30d, all"})
+			return
+		}
 	}
 
 	bucket := c.DefaultQuery("bucket", "hour")
