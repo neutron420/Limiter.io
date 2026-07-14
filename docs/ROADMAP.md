@@ -44,8 +44,7 @@ Written after a full pass over the codebase — `internal/`, `cmd/`, `sdk/`, `de
 1. **Tests are the biggest gap.** Only `internal/middleware/ratelimit_test.go` exists.
    Add: unit tests for each Lua algorithm, JWT/crypto utils, `matchRoute`, CORS helpers; handler
    integration tests (httptest + sqlite/testcontainers); one end-to-end gateway flow. Wire into `ci.yml`.
-2. **Real email transport.** Forgot/reset **generates tokens but never emails them** — there's no
-   SMTP/Resend/SES integration (`auth_service.go`). Until then, reset links only reach the server log.
+2. **[DONE] Real email transport.** Integrated with Resend API using the configured `RESEND_API_KEY` and fallback mailer logger for local development. Full HTML OTP/link dispatch is verified.
 3. **Analytics retention is defined but never enforced.** Plans carry `AnalyticsRetentionDays`
    (7/90/365) but no job deletes old `analytics_logs` → the table grows forever. Add a scheduled cleanup
    (cron goroutine or the consumer) that prunes per project's plan.

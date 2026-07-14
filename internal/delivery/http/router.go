@@ -122,6 +122,7 @@ func SetupRouter(c RouterConfig) {
 			auth.POST("/refresh", c.AuthHandler.Refresh)
 			auth.POST("/forgot-password", c.AuthHandler.ForgotPassword)
 			auth.POST("/reset-password", c.AuthHandler.ResetPassword)
+			auth.POST("/google", c.AuthHandler.LoginWithGoogle)
 		}
 
 		// Billing Webhooks (Public endpoint for Lemon Squeezy callback)

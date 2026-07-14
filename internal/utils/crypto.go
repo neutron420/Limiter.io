@@ -49,3 +49,16 @@ func GenerateRandomToken(length int) (string, error) {
 	}
 	return hex.EncodeToString(bytes), nil
 }
+
+func GenerateOTP(length int) (string, error) {
+	const digits = "0123456789"
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	for i := 0; i < length; i++ {
+		bytes[i] = digits[int(bytes[i])%len(digits)]
+	}
+	return string(bytes), nil
+}
+

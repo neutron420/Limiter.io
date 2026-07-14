@@ -19,7 +19,7 @@ import {
   TerminalSquare,
 } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -201,7 +201,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   size="lg"
                 >
                   <Avatar className="h-8 w-8 rounded-none border-2 border-foreground">
-                    <AvatarFallback className="rounded-none bg-[#ea580c] text-white text-xs font-bold">
+                    {user?.avatarUrl && (
+                      <AvatarImage src={user.avatarUrl} alt="Operator Avatar" className="rounded-none object-cover" />
+                    )}
+                    <AvatarFallback className="rounded-none bg-[#ea580c] text-white text-xs font-bold font-mono">
                       {initials}
                     </AvatarFallback>
                   </Avatar>
@@ -221,7 +224,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <DropdownMenuLabel className="p-0 font-base">
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <Avatar className="h-8 w-8 rounded-none border-2 border-foreground">
-                      <AvatarFallback className="rounded-none bg-[#ea580c] text-white text-xs font-bold">
+                      {user?.avatarUrl && (
+                        <AvatarImage src={user.avatarUrl} alt="Operator Avatar" className="rounded-none object-cover" />
+                      )}
+                      <AvatarFallback className="rounded-none bg-[#ea580c] text-white text-xs font-bold font-mono">
                         {initials}
                       </AvatarFallback>
                     </Avatar>

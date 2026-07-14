@@ -82,3 +82,27 @@ func (r *cacheRepo) DeleteSubscription(ctx context.Context, userID uuid.UUID) er
 	key := fmt.Sprintf("rate_limit:cache:subscription:%s", userID.String())
 	return r.rc.Client.Del(ctx, key).Err()
 }
+
+func (r *cacheRepo) Increment(ctx context.Context, key string, ttl time.Duration) (int64, error) {
+	pipe := r.rc.Client.Pipeline()
+	incr := pipe.Incr(ctx, key)
+	pipe.Expire(ctx, key, ttl)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return incr.Val(), nil
+}
+
+func (r *cacheRepo) Get(ctx context.Context, key string) (string, error) {
+	return r.rc.Client.Get(ctx, key).Result()
+}
+
+func (r *cacheRepo) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	return r.rc.Client.Set(ctx, key, value, ttl).Err()
+}
+
+func (r *cacheRepo) Delete(ctx context.Context, key string) error {
+	return r.rc.Client.Del(ctx, key).Err()
+}
+

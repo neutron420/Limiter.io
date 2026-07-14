@@ -30,11 +30,16 @@ type ForgotPasswordRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }
 
+type GoogleLoginRequest struct {
+	IDToken string `json:"id_token" binding:"required"`
+}
+
 type AuthResponse struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
 	UserEmail    string    `json:"email"`
 	UserID       uuid.UUID `json:"user_id"`
+	AvatarURL    string    `json:"avatar_url,omitempty"`
 }
 
 // Project DTOs

@@ -260,6 +260,13 @@ func NewAnalyticsRepository(db *gorm.DB) repository.AnalyticsRepository {
 	return &analyticsRepo{db: db}
 }
 
+// PurgeExpiredByPlan removes expired analytics logs; implemented as a no-op
+// to satisfy the repository.AnalyticsRepository interface. Returns the
+// number of deleted records (0 for no-op) and an error if any.
+func (r *analyticsRepo) PurgeExpiredByPlan(ctx context.Context) (int64, error) {
+	return 0, nil
+}
+
 func (r *analyticsRepo) GetAggregatedStats(ctx context.Context, projectID uuid.UUID, start, end time.Time) (map[string]interface{}, error) {
 	var result struct {
 		TotalRequests   int64   `gorm:"column:total_requests"`

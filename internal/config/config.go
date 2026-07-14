@@ -33,6 +33,9 @@ type Config struct {
 	LemonSqueezyWebhookSecret string `mapstructure:"LEMON_SQUEEZY_WEBHOOK_SECRET"`
 	LemonSqueezyProVariantID  string `mapstructure:"LEMON_SQUEEZY_PRO_VARIANT_ID"`
 	CORSAllowedOrigins        string `mapstructure:"CORS_ALLOWED_ORIGINS"` // comma-separated, or "*"
+	ResendAPIKey              string `mapstructure:"RESEND_API_KEY"`       // transactional email (Resend)
+	ResendFrom                string `mapstructure:"RESEND_FROM"`          // e.g. "Limiter.io <noreply@yourdomain>"
+	AppBaseURL                string `mapstructure:"APP_BASE_URL"`         // frontend origin for links in emails
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -69,6 +72,9 @@ func LoadConfig(path string) (*Config, error) {
 	viper.SetDefault("LEMON_SQUEEZY_WEBHOOK_SECRET", "")
 	viper.SetDefault("LEMON_SQUEEZY_PRO_VARIANT_ID", "1899978")
 	viper.SetDefault("CORS_ALLOWED_ORIGINS", "*") // dev default; set explicit origins in production
+	viper.SetDefault("RESEND_API_KEY", "")
+	viper.SetDefault("RESEND_FROM", "Limiter.io <onboarding@resend.dev>")
+	viper.SetDefault("APP_BASE_URL", "http://localhost:3000")
 
 	if err := viper.ReadInConfig(); err != nil {
 		// It's ok if .env file is missing, config can be read from environment variables directly

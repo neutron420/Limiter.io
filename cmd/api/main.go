@@ -15,6 +15,7 @@ import (
 	deliveryhttp "limiter.io/internal/delivery/http"
 	"limiter.io/internal/handlers"
 	"limiter.io/internal/kafka"
+	"limiter.io/internal/mailer"
 	"limiter.io/internal/ratelimiter"
 	internalredis "limiter.io/internal/redis"
 	"limiter.io/internal/repository/postgres"
@@ -96,8 +97,11 @@ func main() {
 	webhookRepo := postgres.NewWebhookEventRepository(db)
 	memberRepo := postgres.NewProjectMemberRepository(db)
 
+	// Transactional email (Resend, or logged in dev when no key)
+	mail := mailer.New(cfg.ResendAPIKey, cfg.ResendFrom)
+
 	// 8. Initialize Services
-	authService := services.NewAuthService(userRepo, rtRepo, subRepo, cacheRepo, prtRepo, cfg)
+	authService := services.NewAuthService(userRepo, rtRepo, subRepo, cacheRepo, prtRepo, mail, cfg)
 	projService := services.NewProjectService(projRepo, subRepo, memberRepo, userRepo)
 	keyService := services.NewAPIKeyService(keyRepo, projRepo, subRepo, cacheRepo, memberRepo)
 	policyService := services.NewPolicyService(ruleRepo, projRepo, subRepo, memberRepo)

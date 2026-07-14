@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, Suspense, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { Cpu, Home, ShieldCheck } from "lucide-react"
@@ -12,26 +12,39 @@ import {
 	CardContent,
 	CardFooter,
 } from "@/components/ui/card"
-import { Field, SubmitButton, InlineError } from "@/components/dashboard/kit"
+import { Field, SubmitButton, InlineError, Label } from "@/components/dashboard/kit"
 import { api, ApiError } from "@/lib/api"
+import {
+	InputOTP,
+	InputOTPGroup,
+	InputOTPSlot,
+} from "@/components/ui/input-otp"
 
 function ResetPasswordForm() {
 	const searchParams = useSearchParams()
 	const router = useRouter()
-	const token = searchParams.get("token") || ""
+	const tokenFromUrl = searchParams.get("token") || ""
 
+	const [token, setToken] = useState(tokenFromUrl)
 	const [password, setPassword] = useState("")
 	const [confirmPassword, setConfirmPassword] = useState("")
 	const [loading, setLoading] = useState(false)
 	const [success, setSuccess] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 
+	// Sync token if URL parameter changes
+	useEffect(() => {
+		if (tokenFromUrl) {
+			setToken(tokenFromUrl)
+		}
+	}, [tokenFromUrl])
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
 		setError(null)
 
-		if (!token) {
-			setError("Missing or invalid password reset token.")
+		if (!token || token.length !== 6) {
+			setError("Please enter a valid 6-digit verification code.")
 			return
 		}
 
@@ -86,11 +99,30 @@ function ResetPasswordForm() {
 					) : (
 						<form onSubmit={handleSubmit} className="flex flex-col gap-5">
 							<InlineError message={error} />
-							{!token && (
-								<div className="rounded-none border-2 border-danger bg-danger/10 p-3 text-[11px] text-danger uppercase font-bold">
-									No reset token detected in query string. Reset will fail.
+							
+							<div className="flex flex-col gap-2">
+								<Label className="tracking-wider">6-Digit Verification Code</Label>
+								<div className="flex justify-center py-2">
+									<InputOTP
+										maxLength={6}
+										value={token}
+										onChange={(val) => setToken(val)}
+									>
+										<InputOTPGroup>
+											<InputOTPSlot index={0} />
+											<InputOTPSlot index={1} />
+											<InputOTPSlot index={2} />
+											<InputOTPSlot index={3} />
+											<InputOTPSlot index={4} />
+											<InputOTPSlot index={5} />
+										</InputOTPGroup>
+									</InputOTP>
 								</div>
-							)}
+								<span className="text-[10px] text-muted-foreground text-center uppercase">
+									Enter the code sent to your developer email address.
+								</span>
+							</div>
+
 							<Field
 								label="New Password"
 								type="password"
@@ -99,6 +131,7 @@ function ResetPasswordForm() {
 								onChange={(e) => setPassword(e.target.value)}
 								placeholder="••••••••••••"
 							/>
+							
 							<Field
 								label="Confirm Password"
 								type="password"
@@ -107,7 +140,10 @@ function ResetPasswordForm() {
 								onChange={(e) => setConfirmPassword(e.target.value)}
 								placeholder="••••••••••••"
 							/>
-							<SubmitButton loading={loading} disabled={!token}>RESET PASSWORD</SubmitButton>
+							
+							<SubmitButton loading={loading} disabled={token.length !== 6}>
+								RESET PASSWORD
+							</SubmitButton>
 						</form>
 					)}
 				</CardContent>

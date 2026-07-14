@@ -203,10 +203,37 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.ResetPassword(c.Request.Context(), req); err != nil {
+	if err := h.authService.ResetPassword(c.Request.Context(), req, c.ClientIP()); err != nil {
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
 }
+
+// LoginWithGoogle godoc
+// @Summary Google Authentication
+// @Description Authenticates a user with a Google ID Token, registering them if they do not exist
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body dto.GoogleLoginRequest true "Google ID Token"
+// @Success 200 {object} dto.AuthResponse "Successful authentication"
+// @Failure 400 {object} dto.ErrorResponse "Bad Request"
+// @Router /auth/google [post]
+func (h *AuthHandler) LoginWithGoogle(c *gin.Context) {
+	var req dto.GoogleLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	res, err := h.authService.LoginWithGoogle(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
+}
+

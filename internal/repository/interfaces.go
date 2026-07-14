@@ -67,6 +67,8 @@ type AnalyticsRepository interface {
 	GetTimeSeries(ctx context.Context, projectID uuid.UUID, start, end time.Time, bucket string) ([]map[string]interface{}, error)
 	// CountRequestsByProjects counts total requests across projects in a window (usage metering).
 	CountRequestsByProjects(ctx context.Context, projectIDs []uuid.UUID, start, end time.Time) (int64, error)
+	// PurgeExpiredByPlan deletes analytics logs older than each project's plan retention window.
+	PurgeExpiredByPlan(ctx context.Context) (int64, error)
 }
 
 type PasswordResetTokenRepository interface {
@@ -98,4 +100,9 @@ type CacheRepository interface {
 	GetSubscription(ctx context.Context, userID uuid.UUID) (*models.Subscription, error)
 	SetSubscription(ctx context.Context, userID uuid.UUID, sub *models.Subscription, ttl time.Duration) error
 	DeleteSubscription(ctx context.Context, userID uuid.UUID) error
+
+	Increment(ctx context.Context, key string, ttl time.Duration) (int64, error)
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
 }

@@ -102,7 +102,7 @@ const TIERS: Tier[] = [
   {
     id: "pro",
     name: "PRO_TIER",
-    price: "249",
+    price: "29",
     period: "/ month",
     tag: "RECOMMENDED",
     description: "Production APIs. Sub-millisecond latency. 10k req/min limit.",

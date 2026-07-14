@@ -57,7 +57,7 @@ func (s *projectService) CreateProject(ctx context.Context, userID uuid.UUID, re
 
 	// Verify plan limit (e.g. Free plan limits to 3 projects)
 	if sub.Plan.MaxProjects != -1 && count >= int64(sub.Plan.MaxProjects) {
-		return nil, errors.New("you have reached the project limit for your plan. Please upgrade to create more projects")
+		return nil, errors.New("You have used your limit.")
 	}
 
 	project := &models.Project{

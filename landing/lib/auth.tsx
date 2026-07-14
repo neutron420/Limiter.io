@@ -8,12 +8,14 @@ import type { AuthResponse } from "./types"
 interface AuthUser {
   email: string
   userId: string
+  avatarUrl?: string
 }
 
 interface AuthContextValue {
   user: AuthUser | null
   ready: boolean // finished reading persisted tokens
   login: (email: string, password: string) => Promise<void>
+  loginWithGoogle: () => Promise<void>
   register: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -44,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const persist = React.useCallback((data: AuthResponse) => {
     tokens.set(data.access_token, data.refresh_token)
-    const u: AuthUser = { email: data.email, userId: data.user_id }
+    const u: AuthUser = { email: data.email, userId: data.user_id, avatarUrl: data.avatar_url }
     localStorage.setItem(USER_KEY, JSON.stringify(u))
     setUser(u)
   }, [])
@@ -56,6 +58,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [persist],
   )
+
+  const loginWithGoogle = React.useCallback(async () => {
+    const { auth: firebaseAuth, googleProvider, signInWithPopup, GoogleAuthProvider } = await import("./firebase")
+    const result = await signInWithPopup(firebaseAuth, googleProvider)
+    const credential = GoogleAuthProvider.credentialFromResult(result)
+    const idToken = credential?.idToken
+    if (!idToken) {
+      throw new Error("Unable to retrieve Google ID Token from authentication result.")
+    }
+    const data = await api.post<AuthResponse>("/auth/google", { id_token: idToken }, { auth: false })
+    persist(data)
+  }, [persist])
 
   const register = React.useCallback(
     async (email: string, password: string) => {
@@ -81,8 +95,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const value = React.useMemo(
-    () => ({ user, ready, login, register, logout }),
-    [user, ready, login, register, logout],
+    () => ({ user, ready, login, loginWithGoogle, register, logout }),
+    [user, ready, login, loginWithGoogle, register, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

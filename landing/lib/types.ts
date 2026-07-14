@@ -16,6 +16,7 @@ export interface AuthResponse {
   refresh_token: string
   email: string
   user_id: string
+  avatar_url?: string
 }
 
 export interface Project {
