@@ -3,6 +3,15 @@
 .env
 .env.*
 !.env.example
+deploy/docker/.env
+deploy/docker/.env.prod
+
+# ---- Terraform ----
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.*
+deploy/terraform/*.tfvars
+deploy/terraform/.terraform.lock.hcl
 
 # ---- Go build output ----
 /bin/
