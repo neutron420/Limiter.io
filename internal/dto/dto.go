@@ -149,6 +149,31 @@ type MemberResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type InviteMemberRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Role  string `json:"role" binding:"required,oneof=admin member"`
+}
+
+type InviteResponse struct {
+	ID         uuid.UUID  `json:"id"`
+	ProjectID  uuid.UUID  `json:"project_id"`
+	Email      string    `json:"email"`
+	Role       string     `json:"role"`
+	Status     string     `json:"status"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+type AcceptInviteRequest struct {
+	Token string `json:"token" binding:"required"`
+}
+
+type AcceptInviteResponse struct {
+	ProjectID uuid.UUID `json:"project_id"`
+	ProjectName string  `json:"project_name"`
+	Role      string    `json:"role"`
+}
+
 type SimulationRequest struct {
 	RequestsPerSecond float64 `json:"requests_per_second" binding:"required,gt=0"`
 	NumRequests       int     `json:"num_requests" binding:"required,gt=0,lte=500"`

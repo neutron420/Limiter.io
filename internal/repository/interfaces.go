@@ -86,10 +86,20 @@ type WebhookEventRepository interface {
 
 type ProjectMemberRepository interface {
 	Add(ctx context.Context, m *models.ProjectMember) error
-	Remove(ctx context.Context, projectID, userID uuid.UUID) error
+	Remove(ctx context.Context, projectID, memberID uuid.UUID) error
 	ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.ProjectMember, error)
 	ListProjectIDsByUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	IsMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error)
+}
+
+type ProjectInviteRepository interface {
+	Create(ctx context.Context, inv *models.ProjectInvite) error
+	GetByTokenHash(ctx context.Context, hash string) (*models.ProjectInvite, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*models.ProjectInvite, error)
+	ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.ProjectInvite, error)
+	ListPendingByEmail(ctx context.Context, email string) ([]models.ProjectInvite, error)
+	Update(ctx context.Context, inv *models.ProjectInvite) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type CacheRepository interface {

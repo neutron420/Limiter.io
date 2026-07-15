@@ -9,6 +9,7 @@ import type { Project } from "./types"
 interface ProjectContextValue {
   projects: Project[]
   current: Project | null
+  role: "owner" | "admin" | "member" | null
   loading: boolean
   error: string | null
   select: (projectId: string) => void
@@ -62,9 +63,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     [projects, currentId],
   )
 
+  const role = React.useMemo(
+    () => current?.role ?? null,
+    [current],
+  )
+
   const value = React.useMemo(
-    () => ({ projects, current, loading, error, select, refresh }),
-    [projects, current, loading, error, select, refresh],
+    () => ({ projects, current, role, loading, error, select, refresh }),
+    [projects, current, role, loading, error, select, refresh],
   )
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>

@@ -44,17 +44,17 @@ func NewPolicyService(
 }
 
 func (s *policyService) checkProjectAccess(ctx context.Context, userID, projectID uuid.UUID) error {
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return errors.New("project not found")
+	role := roleForProject(ctx, s.projectRepo, s.memberRepo, userID, projectID)
+	if !canRead(role) {
+		return errors.New("unauthorized to access this project")
 	}
-	isOwner := proj.UserID == userID
-	isMember := false
-	if !isOwner {
-		isMember, _ = s.memberRepo.IsMember(ctx, projectID, userID)
-	}
-	if !isOwner && !isMember {
-		return errors.New("unauthorized")
+	return nil
+}
+
+func (s *policyService) checkProjectWriteAccess(ctx context.Context, userID, projectID uuid.UUID) error {
+	role := roleForProject(ctx, s.projectRepo, s.memberRepo, userID, projectID)
+	if !canWrite(role) {
+		return errors.New("insufficient role: read-only members cannot modify the project")
 	}
 	return nil
 }
@@ -64,7 +64,7 @@ func (s *policyService) CreateRule(ctx context.Context, userID uuid.UUID, projec
 	if err != nil {
 		return nil, errors.New("project not found")
 	}
-	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+	if err := s.checkProjectWriteAccess(ctx, userID, projectID); err != nil {
 		return nil, err
 	}
 
@@ -147,7 +147,7 @@ func (s *policyService) UpdateRule(ctx context.Context, userID uuid.UUID, projec
 	if err != nil {
 		return nil, errors.New("project not found")
 	}
-	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+	if err := s.checkProjectWriteAccess(ctx, userID, projectID); err != nil {
 		return nil, err
 	}
 
@@ -217,7 +217,7 @@ func (s *policyService) UpdateRule(ctx context.Context, userID uuid.UUID, projec
 }
 
 func (s *policyService) DeleteRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID) error {
-	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+	if err := s.checkProjectWriteAccess(ctx, userID, projectID); err != nil {
 		return err
 	}
 
@@ -234,7 +234,7 @@ func (s *policyService) DeleteRule(ctx context.Context, userID uuid.UUID, projec
 }
 
 func (s *policyService) SimulateRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID, numRequests int, reqsPerSecond float64) ([]dto.SimulationStep, error) {
-	if err := s.checkProjectAccess(ctx, userID, projectID); err != nil {
+	if err := s.checkProjectWriteAccess(ctx, userID, projectID); err != nil {
 		return nil, err
 	}
 

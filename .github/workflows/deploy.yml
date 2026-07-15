@@ -1,76 +1,76 @@
-# name: Deploy to EC2
-# on:
-#   push:
-#     branches: [ main ]
-#   workflow_dispatch: {}
+name: Deploy to EC2
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
 
-# concurrency:
-#   group: deploy-production
-#   cancel-in-progress: false
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
-# jobs:
-#   deploy:
-#     name: Build & Deploy on EC2
-#     runs-on: ubuntu-latest
-#     environment: production
+jobs:
+  deploy:
+    name: Build & Deploy on EC2
+    runs-on: ubuntu-latest
+    environment: production
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Set up SSH
-#         run: |
-#           mkdir -p ~/.ssh
-#           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
-#           chmod 600 ~/.ssh/deploy_key
-#           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
 
-#       - name: Sync repository to EC2
-#         run: |
-#           rsync -az --delete \
-#             --exclude '.git' \
-#             --exclude 'landing/node_modules' \
-#             --exclude 'landing/.next' \
-#             -e "ssh -i ~/.ssh/deploy_key" \
-#             ./ ubuntu@${{ secrets.EC2_HOST }}:/opt/limiter/app/
+      - name: Sync repository to EC2
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude 'landing/node_modules' \
+            --exclude 'landing/.next' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ ubuntu@${{ secrets.EC2_HOST }}:/opt/limiter/app/
 
-#       - name: Write production env file
-#         run: |
-#           ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "cat > /opt/limiter/.env.prod" <<'EOF'
-#           ${{ secrets.PROD_ENV_FILE }}
-#           NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
-#           NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL=${{ secrets.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL }}
-#           NEXT_PUBLIC_SALES_EMAIL=${{ secrets.NEXT_PUBLIC_SALES_EMAIL }}
-#           EOF
+      - name: Write production env file
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "cat > /opt/limiter/.env.prod" <<'EOF'
+          ${{ secrets.PROD_ENV_FILE }}
+          NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL=${{ secrets.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL }}
+          NEXT_PUBLIC_SALES_EMAIL=${{ secrets.NEXT_PUBLIC_SALES_EMAIL }}
+          EOF
 
-#       - name: Build and restart stack
-#         run: |
-#           ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} bash -s <<'EOF'
-#           set -euo pipefail
-#           cd /opt/limiter/app/deploy/docker
+      - name: Build and restart stack
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} bash -s <<'EOF'
+          set -euo pipefail
+          cd /opt/limiter/app/deploy/docker
 
-#           # .env.prod feeds compose interpolation (as .env) and the api/consumer env_file
-#           cp /opt/limiter/.env.prod .env.prod
-#           cp /opt/limiter/.env.prod .env
+          # .env.prod feeds compose interpolation (as .env) and the api/consumer env_file
+          cp /opt/limiter/.env.prod .env.prod
+          cp /opt/limiter/.env.prod .env
 
-#           docker compose -f docker-compose.prod.yml build --pull
-#           docker compose -f docker-compose.prod.yml up -d --remove-orphans
+          docker compose -f docker-compose.prod.yml build --pull
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-#           # prune old build layers so the disk doesn't fill up over time
-#           docker image prune -f
-#           EOF
+          # prune old build layers so the disk doesn't fill up over time
+          docker image prune -f
+          EOF
 
-#       - name: Health check
-#         run: |
-#           echo "Waiting for API to become healthy..."
-#           for i in $(seq 1 30); do
-#             code=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ secrets.EC2_HOST }}/healthz" || true)
-#             if [ "$code" = "200" ]; then
-#               echo "API healthy (attempt $i)"
-#               exit 0
-#             fi
-#             echo "attempt $i: /healthz -> $code, retrying in 5s"
-#             sleep 5
-#           done
-#           echo "API did not become healthy in time"
-#           exit 1
+      - name: Health check
+        run: |
+          echo "Waiting for API to become healthy..."
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ secrets.EC2_HOST }}/healthz" || true)
+            if [ "$code" = "200" ]; then
+              echo "API healthy (attempt $i)"
+              exit 0
+            fi
+            echo "attempt $i: /healthz -> $code, retrying in 5s"
+            sleep 5
+          done
+          echo "API did not become healthy in time"
+          exit 1

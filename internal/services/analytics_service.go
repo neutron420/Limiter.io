@@ -36,16 +36,8 @@ func NewAnalyticsService(
 }
 
 func (s *analyticsService) checkProjectAccess(ctx context.Context, userID, projectID uuid.UUID) error {
-	proj, err := s.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		return errors.New("project not found")
-	}
-	isOwner := proj.UserID == userID
-	isMember := false
-	if !isOwner {
-		isMember, _ = s.memberRepo.IsMember(ctx, projectID, userID)
-	}
-	if !isOwner && !isMember {
+	role := roleForProject(ctx, s.projectRepo, s.memberRepo, userID, projectID)
+	if !canRead(role) {
 		return errors.New("unauthorized to access this project's analytics")
 	}
 	return nil

@@ -2,6 +2,16 @@
 # EC2 bootstrap for the Limiter.io Docker host (runs once at first boot).
 set -euxo pipefail
 
+# ---- Swap File (4GB swap is required to run Kafka+Postgres+Next.js on t3.micro/t3.small) ----
+SWAPFILE=/swapfile
+if [ ! -f "$SWAPFILE" ]; then
+    fallocate -l 4G "$SWAPFILE" || dd if=/dev/zero of="$SWAPFILE" bs=1M count=4096
+    chmod 600 "$SWAPFILE"
+    mkswap "$SWAPFILE"
+    swapon "$SWAPFILE"
+    echo "$SWAPFILE none swap sw 0 0" >> /etc/fstab
+fi
+
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update -y

@@ -19,6 +19,8 @@ import {
 } from "@/components/dashboard/kit"
 import { RequireProject } from "@/components/dashboard/require-project"
 import { api, ApiError } from "@/lib/api"
+import { useProject } from "@/lib/project-context"
+import { canWrite } from "@/lib/rbac"
 import type { ApiKey, Project } from "@/lib/types"
 
 function keyState(k: ApiKey): string {
@@ -50,9 +52,11 @@ function CopyRow({ value }: { value: string }) {
 
 function KeysInner({ project }: { project: Project }) {
   const pid = project.id
+  const { role } = useProject()
   const [keys, setKeys] = React.useState<ApiKey[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const canWriteProject = canWrite(role)
 
   const [createOpen, setCreateOpen] = React.useState(false)
   const [name, setName] = React.useState("")
@@ -136,7 +140,12 @@ function KeysInner({ project }: { project: Project }) {
             Secrets developers send as X-API-Key to the gateway
           </p>
         </div>
-        <BrutalButton variant="primary" icon={Plus} onClick={() => setCreateOpen(true)}>
+        <BrutalButton
+          variant="primary"
+          icon={Plus}
+          onClick={() => setCreateOpen(true)}
+          disabled={!canWriteProject}
+        >
           New Key
         </BrutalButton>
       </div>
@@ -151,9 +160,11 @@ function KeysInner({ project }: { project: Project }) {
           title="No API keys yet"
           hint="Create a key to authenticate requests to the rate-limiter gateway."
           action={
-            <BrutalButton variant="primary" icon={Plus} onClick={() => setCreateOpen(true)}>
-              Create a key
-            </BrutalButton>
+            canWriteProject ? (
+              <BrutalButton variant="primary" icon={Plus} onClick={() => setCreateOpen(true)}>
+                Create a key
+              </BrutalButton>
+            ) : undefined
           }
         />
       ) : (
@@ -194,7 +205,7 @@ function KeysInner({ project }: { project: Project }) {
                     <BrutalButton
                       variant="outline"
                       icon={RefreshCw}
-                      disabled={disabled || busy}
+                      disabled={disabled || busy || !canWriteProject}
                       onClick={() => rotate(k)}
                     >
                       Rotate
@@ -203,7 +214,7 @@ function KeysInner({ project }: { project: Project }) {
                       <BrutalButton
                         variant="outline"
                         icon={Ban}
-                        disabled={busy}
+                        disabled={busy || !canWriteProject}
                         onClick={() => setConfirm({ key: k, action: "revoke" })}
                       >
                         Revoke
@@ -214,7 +225,7 @@ function KeysInner({ project }: { project: Project }) {
                       icon={Trash2}
                       className="ml-auto"
                       aria-label="Delete key"
-                      disabled={busy}
+                      disabled={busy || !canWriteProject}
                       onClick={() => setConfirm({ key: k, action: "delete" })}
                     />
                   </div>

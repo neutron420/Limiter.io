@@ -258,3 +258,24 @@ func (pm *ProjectMember) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// ProjectInvite represents a pending invitation to join a project.
+type ProjectInvite struct {
+	ID         uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	ProjectID  uuid.UUID  `gorm:"type:uuid;index;not null" json:"project_id"`
+	Email      string     `gorm:"index;not null" json:"email"`           // invitee (may not be a user yet)
+	Role       string     `gorm:"not null;default:member" json:"role"`   // admin | member
+	TokenHash  string     `gorm:"uniqueIndex;not null" json:"-"`         // SHA-256 of the emailed token
+	InvitedBy  uuid.UUID  `gorm:"type:uuid;not null" json:"invited_by"`
+	Status     string     `gorm:"not null;default:pending" json:"status"` // pending | accepted | revoked | expired
+	ExpiresAt  time.Time  `gorm:"not null" json:"expires_at"`             // 7 days
+	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+func (pi *ProjectInvite) BeforeCreate(tx *gorm.DB) error {
+	if pi.ID == uuid.Nil {
+		pi.ID = uuid.New()
+	}
+	return nil
+}

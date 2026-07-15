@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { Cpu, Home } from "lucide-react"
 import {
@@ -17,7 +17,22 @@ import { useAuth } from "@/lib/auth"
 import { ApiError } from "@/lib/api"
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6 font-mono">
+          <Cpu className="h-8 w-8 animate-spin text-[#ea580c]" />
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
+  )
+}
+
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login, loginWithGoogle } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -25,13 +40,15 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const nextUrl = searchParams.get("next") || "/dashboard"
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
       await login(email, password)
-      router.push("/dashboard")
+      router.push(nextUrl)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to reach the auth server")
       setLoading(false)
@@ -43,7 +60,7 @@ export default function LoginPage() {
     setGoogleLoading(true)
     try {
       await loginWithGoogle()
-      router.push("/dashboard")
+      router.push(nextUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google authentication failed")
       setGoogleLoading(false)

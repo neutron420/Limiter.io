@@ -25,9 +25,10 @@ terraform apply \
 terraform output   # note public_ip
 ```
 
-What it creates: EC2 (t3.medium, Ubuntu 24.04, 30 GB gp3), Elastic IP, security group
-(22/80/443), and a first-boot script that installs Docker + nginx (reverse proxy:
-`/` → landing:3000, `/api|/swagger|/healthz|/metrics` → api:8080, with WebSocket upgrade).
+What it creates: EC2 (t3.micro by default, Ubuntu 24.04, 30 GB gp3), Elastic IP, security group
+(22/80/443), and a first-boot script that sets up 4GB swap space (essential to run Kafka + DBs on t3.micro),
+and installs Docker + nginx (reverse proxy: `/` → landing:3000, `/api|/swagger|/healthz|/metrics` → api:8080,
+with WebSocket upgrade).
 
 ---
 

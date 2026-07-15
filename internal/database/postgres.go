@@ -72,6 +72,7 @@ func MigrateAndSeed(db *gorm.DB, cfg *config.Config) error {
 		&models.PasswordResetToken{},
 		&models.WebhookEvent{},
 		&models.ProjectMember{},
+		&models.ProjectInvite{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run database migration: %w", err)

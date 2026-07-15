@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 
 import {
   Breadcrumb,
@@ -19,12 +19,18 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Spinner } from "@/components/dashboard/kit"
 import { useAuth } from "@/lib/auth"
-import { ProjectProvider, useProject } from "@/lib/project-context"
+import { useProject } from "@/lib/project-context"
 
 import { AppSidebar } from "./sidebar"
 
 function DashboardChrome({ children }: { children: React.ReactNode }) {
-  const { current } = useProject()
+  const router = useRouter()
+  const { current, role } = useProject()
+  const pathname = usePathname()
+
+  useEffect(() => {
+    if (role === "member" && ["/dashboard/policies", "/dashboard/keys", "/dashboard/playground", "/dashboard/projects", "/dashboard/billing"].some((path) => pathname.startsWith(path))) router.replace("/member-dashboard")
+  }, [role, pathname, router])
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -42,7 +48,7 @@ function DashboardChrome({ children }: { children: React.ReactNode }) {
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
                   <BreadcrumbPage className="font-mono text-xs uppercase tracking-wider">
-                    {current ? current.name : "Console"}
+                    {current ? current.name : "Console"}{role === "member" ? " · READ-ONLY" : ""}
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
@@ -73,8 +79,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <ProjectProvider>
-      <DashboardChrome>{children}</DashboardChrome>
-    </ProjectProvider>
+    <DashboardChrome>{children}</DashboardChrome>
   )
 }

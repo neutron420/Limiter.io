@@ -144,8 +144,14 @@ func SetupRouter(c RouterConfig) {
 
 			// Project Members
 			private.GET("/projects/:projectId/members", c.ProjHandler.ListMembers)
-			private.POST("/projects/:projectId/members", c.ProjHandler.AddMember)
 			private.DELETE("/projects/:projectId/members/:memberId", c.ProjHandler.RemoveMember)
+
+			// Project Invites
+			private.POST("/projects/:projectId/invites", c.ProjHandler.InviteMember)
+			private.GET("/projects/:projectId/invites", c.ProjHandler.ListInvites)
+			private.DELETE("/projects/:projectId/invites/:inviteId", c.ProjHandler.RevokeInvite)
+			private.GET("/invites", c.ProjHandler.ListMyInvites)
+			private.POST("/invites/accept", c.ProjHandler.AcceptInvite)
 
 			// API Keys
 			private.POST("/projects/:projectId/keys", c.KeyHandler.Create)

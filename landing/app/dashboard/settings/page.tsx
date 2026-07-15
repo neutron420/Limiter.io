@@ -17,10 +17,12 @@ import {
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { useProject } from "@/lib/project-context"
+import { canWrite } from "@/lib/rbac"
 
 export default function SettingsPage() {
   const { user, logout } = useAuth()
-  const { current } = useProject()
+  const { current, role } = useProject()
+  const canWriteProject = canWrite(role)
 
   // Password change state
   const [oldPassword, setOldPassword] = React.useState("")
@@ -33,6 +35,8 @@ export default function SettingsPage() {
   // Team sharing state
   const [members, setMembers] = React.useState<any[]>([])
   const [membersLoading, setMembersLoading] = React.useState(false)
+  const [invites, setInvites] = React.useState<any[]>([])
+  const [invitesLoading, setInvitesLoading] = React.useState(false)
   const [inviteEmail, setInviteEmail] = React.useState("")
   const [inviteRole, setInviteRole] = React.useState("member")
   const [inviteError, setInviteError] = React.useState<string | null>(null)
@@ -51,9 +55,23 @@ export default function SettingsPage() {
     }
   }, [current])
 
+  const loadInvites = React.useCallback(async () => {
+    if (!current) return
+    setInvitesLoading(true)
+    try {
+      const list = await api.get<any[]>(`/projects/${current.id}/invites`)
+      setInvites(list ?? [])
+    } catch {
+      // ignore
+    } finally {
+      setInvitesLoading(false)
+    }
+  }, [current])
+
   React.useEffect(() => {
     loadMembers()
-  }, [loadMembers])
+    loadInvites()
+  }, [loadMembers, loadInvites])
 
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,16 +99,27 @@ export default function SettingsPage() {
     setInviteError(null)
     setInviting(true)
     try {
-      const m = await api.post<any>(`/projects/${current.id}/members`, {
+      const invite = await api.post<any>(`/projects/${current.id}/invites`, {
         email: inviteEmail,
         role: inviteRole,
       })
-      setMembers((prev) => [...prev, m])
+      setInvites((prev) => [...prev, invite])
       setInviteEmail("")
     } catch (err) {
       setInviteError(err instanceof ApiError ? err.message : "Failed to invite member")
     } finally {
       setInviting(false)
+    }
+  }
+
+  const revokeInvite = async (inviteId: string) => {
+    if (!current) return
+    if (typeof window !== "undefined" && !window.confirm("Are you sure you want to revoke this invitation?")) return
+    try {
+      await api.del(`/projects/${current.id}/invites/${inviteId}`)
+      setInvites((prev) => prev.filter((i) => i.id !== inviteId))
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to revoke invite")
     }
   }
 
@@ -179,57 +208,104 @@ export default function SettingsPage() {
             <Panel className="h-full">
               <PanelHeader title="Project Team Access" icon={Users} />
               <div className="flex flex-col gap-4 p-4">
-                <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
-                  {membersLoading ? (
-                    <Spinner label="LOADING TEAM MEMBERS" />
-                  ) : members.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground uppercase py-2">
-                      No collaborators added yet. Only the owner has access.
-                    </p>
-                  ) : (
-                    members.map((m) => (
-                      <div key={m.id} className="flex justify-between items-center border-2 border-foreground p-2 bg-background">
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold truncate">{m.email}</p>
-                          <p className="text-[9px] text-[#ea580c] uppercase font-bold">{m.role}</p>
+                {/* Members */}
+                <div>
+                  <Label className="font-bold text-foreground mb-2 block">Members</Label>
+                  <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1">
+                    {membersLoading ? (
+                      <Spinner label="LOADING TEAM MEMBERS" />
+                    ) : members.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground uppercase py-2">
+                        No collaborators added yet. Only the owner has access.
+                      </p>
+                    ) : (
+                      members.map((m) => (
+                        <div key={m.id} className="flex justify-between items-center border-2 border-foreground p-2 bg-background">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold truncate">{m.email}</p>
+                            <p className="text-[9px] text-[#ea580c] uppercase font-bold">{m.role}</p>
+                          </div>
+                          {m.user_id !== user?.userId && canWriteProject && (
+                            <BrutalButton
+                              variant="danger"
+                              className="p-1.5 cursor-pointer"
+                              onClick={() => removeMember(m.id)}
+                            >
+                              <Trash2 size={12} />
+                            </BrutalButton>
+                          )}
                         </div>
-                        {m.user_id !== user?.userId && (
-                          <BrutalButton
-                            variant="danger"
-                            className="p-1.5 cursor-pointer"
-                            onClick={() => removeMember(m.id)}
-                          >
-                            <Trash2 size={12} />
-                          </BrutalButton>
-                        )}
-                      </div>
-                    ))
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
 
-                <div className="border-t-2 border-foreground pt-4 mt-2">
-                  <Label className="font-bold text-foreground">Invite Collaborator</Label>
-                  <form onSubmit={inviteMember} className="flex flex-col gap-3 mt-2">
-                    <InlineError message={inviteError} />
-                    <Field
-                      label="Collaborator Email"
-                      type="email"
-                      required
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="teammate@company.com"
-                    />
-                    <SelectField
-                      label="Role"
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                    >
-                      <option value="member">MEMBER (READ-ONLY)</option>
-                      <option value="admin">ADMIN (READ-WRITE)</option>
-                    </SelectField>
-                    <SubmitButton loading={inviting}>INVITE MEMBER</SubmitButton>
-                  </form>
+                {/* Pending Invites */}
+                <div className="border-t-2 border-foreground pt-4">
+                  <Label className="font-bold text-foreground mb-2 block">Pending Invites</Label>
+                  <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-1">
+                    {invitesLoading ? (
+                      <Spinner label="LOADING INVITES" />
+                    ) : invites.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground uppercase py-2">
+                        No pending invitations.
+                      </p>
+                    ) : (
+                      invites.map((inv) => (
+                        <div key={inv.id} className="flex justify-between items-center border-2 border-yellow-500 bg-yellow-500/10 p-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold truncate">{inv.email}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-[9px] text-[#ea580c] uppercase font-bold">{inv.role}</p>
+                              <span className="border-2 border-yellow-500 text-yellow-600 bg-yellow-500/10 text-[8px] uppercase font-bold px-1.5 py-0.5">
+                                PENDING
+                              </span>
+                            </div>
+                            <p className="text-[8px] text-muted-foreground">
+                              Expires: {new Date(inv.expires_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          {canWriteProject && (
+                            <BrutalButton
+                              variant="danger"
+                              className="p-1.5 cursor-pointer"
+                              onClick={() => revokeInvite(inv.id)}
+                            >
+                              <Trash2 size={12} />
+                            </BrutalButton>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
+
+                {/* Invite Form */}
+                {canWriteProject && (
+                  <div className="border-t-2 border-foreground pt-4 mt-2">
+                    <Label className="font-bold text-foreground">Invite Collaborator</Label>
+                    <form onSubmit={inviteMember} className="flex flex-col gap-3 mt-2">
+                      <InlineError message={inviteError} />
+                      <Field
+                        label="Collaborator Email"
+                        type="email"
+                        required
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        placeholder="teammate@company.com"
+                      />
+                      <SelectField
+                        label="Role"
+                        value={inviteRole}
+                        onChange={(e) => setInviteRole(e.target.value)}
+                      >
+                        <option value="member">MEMBER (READ-ONLY)</option>
+                        <option value="admin">ADMIN (READ-WRITE)</option>
+                      </SelectField>
+                      <SubmitButton loading={inviting}>INVITE MEMBER</SubmitButton>
+                    </form>
+                  </div>
+                )}
               </div>
             </Panel>
           ) : (

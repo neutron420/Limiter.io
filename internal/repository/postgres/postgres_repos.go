@@ -464,9 +464,9 @@ func (r *projectMemberRepo) Add(ctx context.Context, m *models.ProjectMember) er
 	return r.db.WithContext(ctx).Create(m).Error
 }
 
-func (r *projectMemberRepo) Remove(ctx context.Context, projectID, userID uuid.UUID) error {
+func (r *projectMemberRepo) Remove(ctx context.Context, projectID, memberID uuid.UUID) error {
 	return r.db.WithContext(ctx).
-		Where("project_id = ? AND user_id = ?", projectID, userID).
+		Where("project_id = ? AND id = ?", projectID, memberID).
 		Delete(&models.ProjectMember{}).Error
 }
 
@@ -493,4 +493,61 @@ func (r *projectMemberRepo) IsMember(ctx context.Context, projectID, userID uuid
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// Project Invite Repo
+type projectInviteRepo struct {
+	db *gorm.DB
+}
+
+func NewProjectInviteRepository(db *gorm.DB) repository.ProjectInviteRepository {
+	return &projectInviteRepo{db: db}
+}
+
+func (r *projectInviteRepo) Create(ctx context.Context, inv *models.ProjectInvite) error {
+	return r.db.WithContext(ctx).Create(inv).Error
+}
+
+func (r *projectInviteRepo) GetByTokenHash(ctx context.Context, hash string) (*models.ProjectInvite, error) {
+	var inv models.ProjectInvite
+	err := r.db.WithContext(ctx).First(&inv, "token_hash = ?", hash).Error
+	if err != nil {
+		return nil, err
+	}
+	return &inv, nil
+}
+
+func (r *projectInviteRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.ProjectInvite, error) {
+	var inv models.ProjectInvite
+	err := r.db.WithContext(ctx).First(&inv, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &inv, nil
+}
+
+func (r *projectInviteRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.ProjectInvite, error) {
+	var invites []models.ProjectInvite
+	err := r.db.WithContext(ctx).
+		Where("project_id = ? AND status = ?", projectID, "pending").
+		Order("created_at DESC").
+		Find(&invites).Error
+	return invites, err
+}
+
+func (r *projectInviteRepo) ListPendingByEmail(ctx context.Context, email string) ([]models.ProjectInvite, error) {
+	var invites []models.ProjectInvite
+	err := r.db.WithContext(ctx).
+		Where("email = ? AND status = ?", email, "pending").
+		Order("created_at DESC").
+		Find(&invites).Error
+	return invites, err
+}
+
+func (r *projectInviteRepo) Update(ctx context.Context, inv *models.ProjectInvite) error {
+	return r.db.WithContext(ctx).Save(inv).Error
+}
+
+func (r *projectInviteRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	return r.db.WithContext(ctx).Delete(&models.ProjectInvite{}, "id = ?", id).Error
 }

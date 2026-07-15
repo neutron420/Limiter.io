@@ -26,6 +26,23 @@ export interface Project {
   description: string
   created_at: string
   updated_at: string
+  role: "owner" | "admin" | "member"
+}
+
+export interface ProjectInvite {
+  id: string
+  project_id: string
+  email: string
+  role: "admin" | "member"
+  status: "pending" | "accepted" | "revoked" | "expired"
+  expires_at: string
+  created_at: string
+}
+
+export interface AcceptInviteResponse {
+  project_id: string
+  project_name: string
+  role: "admin" | "member"
 }
 
 export interface ApiKey {

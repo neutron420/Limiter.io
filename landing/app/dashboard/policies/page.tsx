@@ -20,6 +20,8 @@ import {
 } from "@/components/dashboard/kit"
 import { RequireProject } from "@/components/dashboard/require-project"
 import { api, ApiError } from "@/lib/api"
+import { useProject } from "@/lib/project-context"
+import { canWrite } from "@/lib/rbac"
 import { ALGORITHMS, ALGO_LABEL, type Algorithm, type Project, type Rule } from "@/lib/types"
 
 interface FormState {
@@ -44,9 +46,11 @@ const emptyForm: FormState = {
 
 function PoliciesInner({ project }: { project: Project }) {
   const pid = project.id
+  const { role } = useProject()
   const [rules, setRules] = React.useState<Rule[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const canWriteProject = canWrite(role)
 
   const [editing, setEditing] = React.useState<Rule | null>(null)
   const [formOpen, setFormOpen] = React.useState(false)
@@ -159,7 +163,12 @@ function PoliciesInner({ project }: { project: Project }) {
             Rules matched by route pattern, evaluated atomically in Redis
           </p>
         </div>
-        <BrutalButton variant="primary" icon={Plus} onClick={openCreate}>
+        <BrutalButton
+          variant="primary"
+          icon={Plus}
+          onClick={openCreate}
+          disabled={!canWriteProject}
+        >
           New Rule
         </BrutalButton>
       </div>
@@ -174,9 +183,11 @@ function PoliciesInner({ project }: { project: Project }) {
           title="No rate rules yet"
           hint="Define your first policy — pick an algorithm, a route pattern, and a limit per period."
           action={
-            <BrutalButton variant="primary" icon={Plus} onClick={openCreate}>
-              Create a rule
-            </BrutalButton>
+            canWriteProject ? (
+              <BrutalButton variant="primary" icon={Plus} onClick={openCreate}>
+                Create a rule
+              </BrutalButton>
+            ) : undefined
           }
         />
       ) : (
@@ -222,10 +233,20 @@ function PoliciesInner({ project }: { project: Project }) {
                   </div>
                 </div>
                 <div className="mt-auto flex items-center gap-2 border-t-2 border-foreground p-3">
-                  <BrutalButton variant="outline" icon={Power} onClick={() => toggleActive(r)}>
+                  <BrutalButton
+                    variant="outline"
+                    icon={Power}
+                    onClick={() => toggleActive(r)}
+                    disabled={!canWriteProject}
+                  >
                     {r.is_active ? "Disable" : "Enable"}
                   </BrutalButton>
-                  <BrutalButton variant="outline" icon={Pencil} onClick={() => openEdit(r)}>
+                  <BrutalButton
+                    variant="outline"
+                    icon={Pencil}
+                    onClick={() => openEdit(r)}
+                    disabled={!canWriteProject}
+                  >
                     Edit
                   </BrutalButton>
                   <BrutalButton
@@ -234,6 +255,7 @@ function PoliciesInner({ project }: { project: Project }) {
                     className="ml-auto"
                     aria-label="Delete rule"
                     onClick={() => setToDelete(r)}
+                    disabled={!canWriteProject}
                   />
                 </div>
               </Panel>

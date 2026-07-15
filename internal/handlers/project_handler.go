@@ -63,19 +63,20 @@ func (h *ProjectHandler) Get(c *gin.Context) {
 	}
 
 	userID := uuid.MustParse(userIDStr.(string))
-	project, err := h.projectService.GetProject(c.Request.Context(), userID, projectID)
+	project, role, err := h.projectService.GetProject(c.Request.Context(), userID, projectID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ProjectResponse{
-		ID:          project.ID,
-		UserID:      project.UserID,
-		Name:        project.Name,
-		Description: project.Description,
-		CreatedAt:   project.CreatedAt,
-		UpdatedAt:   project.UpdatedAt,
+	c.JSON(http.StatusOK, gin.H{
+		"id":          project.ID,
+		"user_id":     project.UserID,
+		"name":        project.Name,
+		"description": project.Description,
+		"created_at":  project.CreatedAt,
+		"updated_at":  project.UpdatedAt,
+		"role":        role,
 	})
 }
 
@@ -87,21 +88,22 @@ func (h *ProjectHandler) List(c *gin.Context) {
 	}
 
 	userID := uuid.MustParse(userIDStr.(string))
-	projects, err := h.projectService.ListProjects(c.Request.Context(), userID)
+	projects, roles, err := h.projectService.ListProjects(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	resp := make([]dto.ProjectResponse, len(projects))
+	resp := make([]gin.H, len(projects))
 	for i, project := range projects {
-		resp[i] = dto.ProjectResponse{
-			ID:          project.ID,
-			UserID:      project.UserID,
-			Name:        project.Name,
-			Description: project.Description,
-			CreatedAt:   project.CreatedAt,
-			UpdatedAt:   project.UpdatedAt,
+		resp[i] = gin.H{
+			"id":          project.ID,
+			"user_id":     project.UserID,
+			"name":        project.Name,
+			"description": project.Description,
+			"created_at":  project.CreatedAt,
+			"updated_at":  project.UpdatedAt,
+			"role":        roles[project.ID],
 		}
 	}
 
@@ -230,6 +232,165 @@ func (h *ProjectHandler) ListMembers(c *gin.Context) {
 			Email:     m.Email,
 			Role:      m.Role,
 			CreatedAt: m.CreatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ProjectHandler) InviteMember(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid project ID format"})
+		return
+	}
+
+	var req dto.InviteMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	invite, err := h.projectService.InviteMember(c.Request.Context(), userID, projectID, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, dto.InviteResponse{
+		ID:         invite.ID,
+		ProjectID:  invite.ProjectID,
+		Email:      invite.Email,
+		Role:       invite.Role,
+		Status:     invite.Status,
+		ExpiresAt:  invite.ExpiresAt,
+		CreatedAt:  invite.CreatedAt,
+	})
+}
+
+func (h *ProjectHandler) AcceptInvite(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	var req dto.AcceptInviteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	resp, err := h.projectService.AcceptInvite(c.Request.Context(), userID, req.Token)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ProjectHandler) ListInvites(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid project ID format"})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	invites, err := h.projectService.ListInvites(c.Request.Context(), userID, projectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	resp := make([]dto.InviteResponse, len(invites))
+	for i, inv := range invites {
+		resp[i] = dto.InviteResponse{
+			ID:         inv.ID,
+			ProjectID:  inv.ProjectID,
+			Email:      inv.Email,
+			Role:       inv.Role,
+			Status:     inv.Status,
+			ExpiresAt:  inv.ExpiresAt,
+			CreatedAt:  inv.CreatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ProjectHandler) RevokeInvite(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid project ID format"})
+		return
+	}
+
+	inviteIDStr := c.Param("inviteId")
+	inviteID, err := uuid.Parse(inviteIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid invite ID format"})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	err = h.projectService.RevokeInvite(c.Request.Context(), userID, projectID, inviteID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "invite revoked successfully"})
+}
+
+func (h *ProjectHandler) ListMyInvites(c *gin.Context) {
+	userIDStr, exists := c.Get("UserID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	userID := uuid.MustParse(userIDStr.(string))
+	invites, err := h.projectService.ListMyInvites(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	resp := make([]dto.InviteResponse, len(invites))
+	for i, inv := range invites {
+		resp[i] = dto.InviteResponse{
+			ID:         inv.ID,
+			ProjectID:  inv.ProjectID,
+			Email:      inv.Email,
+			Role:       inv.Role,
+			Status:     inv.Status,
+			ExpiresAt:  inv.ExpiresAt,
+			CreatedAt:  inv.CreatedAt,
 		}
 	}
 

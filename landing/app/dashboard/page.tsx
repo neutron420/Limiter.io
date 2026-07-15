@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
-import { Activity, Check, ShieldAlert, Zap, RefreshCw, Boxes, Ban, ChevronLeft, ChevronRight } from "lucide-react"
+import { Activity, Check, ShieldAlert, Zap, RefreshCw, Boxes, Ban, ChevronLeft, ChevronRight, Mail } from "lucide-react"
 
 import { DataTable } from "@/components/data-table"
 import {
@@ -20,7 +20,8 @@ import {
 import { api } from "@/lib/api"
 import { useProject } from "@/lib/project-context"
 import { useAnalyticsWS } from "@/hooks/use-analytics-ws"
-import type { AnalyticsLog, Stats } from "@/lib/types"
+import { useAuth } from "@/lib/auth"
+import type { AnalyticsLog, Stats, ProjectInvite } from "@/lib/types"
 
 const DURATIONS = ["24h", "7d", "30d", "all"] as const
 type Duration = (typeof DURATIONS)[number]
@@ -67,9 +68,10 @@ const columns: ColumnDef<AnalyticsLog>[] = [
  
  export default function OverviewPage() {
   const router = useRouter()
-  const { current, loading: projLoading, projects } = useProject()
+  const { current, loading: projLoading, projects, refresh } = useProject()
+  const { user } = useAuth()
   const projectId = current?.id ?? null
- 
+
   const [duration, setDuration] = React.useState<Duration>("all")
   const [stats, setStats] = React.useState<Stats | null>(null)
   const [statsLoading, setStatsLoading] = React.useState(false)
@@ -77,8 +79,25 @@ const columns: ColumnDef<AnalyticsLog>[] = [
   const [logsLoading, setLogsLoading] = React.useState(false)
   const [page, setPage] = React.useState(0)
   const [error, setError] = React.useState<string | null>(null)
+  const [myInvites, setMyInvites] = React.useState<ProjectInvite[]>([])
+  const [invitesLoading, setInvitesLoading] = React.useState(false)
+  const [showInviteBanner, setShowInviteBanner] = React.useState(false)
 
   const { events, status: wsStatus } = useAnalyticsWS(projectId)
+
+  const loadMyInvites = React.useCallback(async () => {
+    if (!user) return
+    setInvitesLoading(true)
+    try {
+      const invites = await api.get<ProjectInvite[]>("/invites")
+      setMyInvites(invites ?? [])
+      setShowInviteBanner((invites?.length ?? 0) > 0)
+    } catch {
+      // ignore
+    } finally {
+      setInvitesLoading(false)
+    }
+  }, [user])
 
   const loadStats = React.useCallback(async () => {
     if (!projectId) return
@@ -120,6 +139,9 @@ const columns: ColumnDef<AnalyticsLog>[] = [
   React.useEffect(() => {
     loadLogs()
   }, [loadLogs])
+  React.useEffect(() => {
+    loadMyInvites()
+  }, [loadMyInvites])
 
   // No project selected → guide the user.
   if (!projLoading && projects.length === 0) {
@@ -165,6 +187,30 @@ const columns: ColumnDef<AnalyticsLog>[] = [
           ))}
         </div>
       </div>
+
+      {/* Invite banner */}
+      {showInviteBanner && myInvites.length > 0 && (
+        <div className="border-2 border-yellow-500 bg-yellow-500/10 p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Mail size={24} className="text-yellow-600" />
+            <div>
+              <p className="text-sm font-bold text-yellow-600 uppercase tracking-wider">
+                You have {myInvites.length} pending project invite{myInvites.length > 1 ? "s" : ""}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Check your email to accept the invitation{myInvites.length > 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
+          <BrutalButton
+            variant="outline"
+            onClick={() => setShowInviteBanner(false)}
+            className="text-xs"
+          >
+            Dismiss
+          </BrutalButton>
+        </div>
+      )}
 
       <InlineError message={error} />
 

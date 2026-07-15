@@ -6,6 +6,7 @@ import (
 
 	"limiter.io/internal/dto"
 	"limiter.io/internal/repository"
+	"limiter.io/internal/services"
 	internalws "limiter.io/internal/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -16,12 +17,14 @@ import (
 type WSHandler struct {
 	hub         *internalws.Hub
 	projectRepo repository.ProjectRepository
+	memberRepo  repository.ProjectMemberRepository
 }
 
-func NewWSHandler(hub *internalws.Hub, projectRepo repository.ProjectRepository) *WSHandler {
+func NewWSHandler(hub *internalws.Hub, projectRepo repository.ProjectRepository, memberRepo repository.ProjectMemberRepository) *WSHandler {
 	return &WSHandler{
 		hub:         hub,
 		projectRepo: projectRepo,
+		memberRepo:  memberRepo,
 	}
 }
 
@@ -47,15 +50,10 @@ func (h *WSHandler) Connect(c *gin.Context) {
 		return
 	}
 
-	// Verify project ownership before upgrading HTTP connection
+	// Verify project access before upgrading HTTP connection
 	userID := uuid.MustParse(userIDStr.(string))
-	project, err := h.projectRepo.GetByID(c.Request.Context(), projectID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "project not found"})
-		return
-	}
-
-	if project.UserID != userID {
+	role := services.RoleForProject(c.Request.Context(), h.projectRepo, h.memberRepo, userID, projectID)
+	if !services.CanRead(role) {
 		c.JSON(http.StatusForbidden, dto.ErrorResponse{Error: "unauthorized to stream analytics for this project"})
 		return
 	}

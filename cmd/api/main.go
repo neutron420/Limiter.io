@@ -96,13 +96,14 @@ func main() {
 	prtRepo := postgres.NewPasswordResetTokenRepository(db)
 	webhookRepo := postgres.NewWebhookEventRepository(db)
 	memberRepo := postgres.NewProjectMemberRepository(db)
+	inviteRepo := postgres.NewProjectInviteRepository(db)
 
 	// Transactional email (Resend, or logged in dev when no key)
 	mail := mailer.New(cfg.ResendAPIKey, cfg.ResendFrom)
 
 	// 8. Initialize Services
 	authService := services.NewAuthService(userRepo, rtRepo, subRepo, cacheRepo, prtRepo, mail, cfg)
-	projService := services.NewProjectService(projRepo, subRepo, memberRepo, userRepo)
+	projService := services.NewProjectService(projRepo, subRepo, memberRepo, userRepo, inviteRepo, mail, cfg)
 	keyService := services.NewAPIKeyService(keyRepo, projRepo, subRepo, cacheRepo, memberRepo)
 	policyService := services.NewPolicyService(ruleRepo, projRepo, subRepo, memberRepo)
 	subService := services.NewSubscriptionService(subRepo, cacheRepo, projRepo, analRepo)
@@ -123,7 +124,7 @@ func main() {
 	subHandler := handlers.NewSubscriptionHandler(subService)
 	analHandler := handlers.NewAnalyticsHandler(analService)
 	healthHandler := handlers.NewHealthHandler(db, rc.Client, cfg)
-	wsHandler := handlers.NewWSHandler(hub, projRepo)
+	wsHandler := handlers.NewWSHandler(hub, projRepo, memberRepo)
 	billingHandler := handlers.NewBillingHandler(cfg, userRepo, subService, webhookRepo)
 
 	// 10. Start Gin Engine

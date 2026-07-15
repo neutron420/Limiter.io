@@ -63,7 +63,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
-  const { projects, current, select } = useProject()
+  const { projects, current, role, select } = useProject()
+
+  const visiblePlatformNav = role === "member" ? platformNav.filter((item) => item.title === "Overview" || item.title === "Analytics") : platformNav
 
   const isActive = (url: string) =>
     url === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(url)
@@ -138,7 +140,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">Platform</SidebarGroupLabel>
           <SidebarMenu>
-            {platformNav.map((item) => (
+            {visiblePlatformNav.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                   <Link href={item.url}>
