@@ -15,9 +15,12 @@ type User struct {
 	Email        string         `gorm:"uniqueIndex;not null" json:"email"`
 	PasswordHash string         `gorm:"not null" json:"-"`
 	AvatarURL    string         `json:"avatar_url"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+	// MFA (TOTP). Secret is stored server-side only; enabled after first verify.
+	TOTPSecret string         `json:"-"`
+	MFAEnabled bool           `gorm:"default:false;not null" json:"mfa_enabled"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
 
 	Projects     []Project     `gorm:"foreignKey:UserID" json:"projects,omitempty"`
 	Subscription *Subscription `gorm:"foreignKey:UserID" json:"subscription,omitempty"`
@@ -34,6 +37,9 @@ type RefreshToken struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	UserID    uuid.UUID `gorm:"type:uuid;index;not null" json:"user_id"`
 	Token     string    `gorm:"uniqueIndex;not null" json:"token"`
+	// Session/device metadata for the sessions dashboard.
+	UserAgent string    `json:"user_agent"`
+	ClientIP  string    `json:"client_ip"`
 	ExpiresAt time.Time `gorm:"not null" json:"expires_at"`
 	Revoked   bool      `gorm:"default:false;not null" json:"revoked"`
 	CreatedAt time.Time `json:"created_at"`
@@ -72,6 +78,7 @@ type APIKey struct {
 	Name       string         `gorm:"not null" json:"name"`
 	KeyHash    string         `gorm:"uniqueIndex;not null" json:"-"`
 	Prefix     string         `gorm:"not null" json:"prefix"`
+	Scope      string         `gorm:"default:gateway-only;not null" json:"scope"` // gateway-only, read-only, admin
 	ExpiresAt  *time.Time     `json:"expires_at,omitempty"`
 	RevokedAt  *time.Time     `json:"revoked_at,omitempty"`
 	LastUsedAt *time.Time     `json:"last_used_at,omitempty"`
@@ -172,10 +179,16 @@ type RateLimitRule struct {
 	Limit       int            `gorm:"not null" json:"limit"`
 	Period      int            `gorm:"not null" json:"period"` // in seconds
 	Burst       int            `gorm:"default:0" json:"burst"`  // used for Token Bucket/Leaky Bucket
-	IsActive    bool           `gorm:"default:true;not null" json:"is_active"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	// Priority orders rules when several patterns match the same path — lower
+	// number wins (checked first). Rules with equal priority keep list order.
+	Priority int `gorm:"default:100;not null" json:"priority"`
+	// CustomResponse, when set, is returned as the JSON "error" message of a
+	// 429 instead of the generic default.
+	CustomResponse string         `json:"custom_response"`
+	IsActive       bool           `gorm:"default:true;not null" json:"is_active"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (rl *RateLimitRule) BeforeCreate(tx *gorm.DB) error {
@@ -276,6 +289,90 @@ type ProjectInvite struct {
 func (pi *ProjectInvite) BeforeCreate(tx *gorm.DB) error {
 	if pi.ID == uuid.Nil {
 		pi.ID = uuid.New()
+	}
+	return nil
+}
+
+// AlertRule defines a project alert condition evaluated periodically.
+type AlertRule struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	ProjectID uuid.UUID `gorm:"type:uuid;index;not null" json:"project_id"`
+	Name      string    `gorm:"not null" json:"name"`
+	// Metric: block_rate (%), traffic_spike (req/window), avg_latency_ms
+	Metric string `gorm:"not null" json:"metric"`
+	// Threshold the metric must exceed to fire.
+	Threshold float64 `gorm:"not null" json:"threshold"`
+	// WindowMinutes the evaluator looks back over.
+	WindowMinutes int `gorm:"default:5;not null" json:"window_minutes"`
+	// Channel: email | webhook
+	Channel string `gorm:"not null;default:email" json:"channel"`
+	// Target: email address or webhook URL, depending on channel.
+	Target      string     `gorm:"not null" json:"target"`
+	IsActive    bool       `gorm:"default:true;not null" json:"is_active"`
+	LastFiredAt *time.Time `json:"last_fired_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+func (ar *AlertRule) BeforeCreate(tx *gorm.DB) error {
+	if ar.ID == uuid.Nil {
+		ar.ID = uuid.New()
+	}
+	return nil
+}
+
+// AlertEvent records each time an alert fired (history for the UI).
+type AlertEvent struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	RuleID    uuid.UUID `gorm:"type:uuid;index;not null" json:"rule_id"`
+	ProjectID uuid.UUID `gorm:"type:uuid;index;not null" json:"project_id"`
+	Metric    string    `json:"metric"`
+	Value     float64   `json:"value"`
+	Threshold float64   `json:"threshold"`
+	Message   string    `json:"message"`
+	Delivered bool      `json:"delivered"`
+	CreatedAt time.Time `gorm:"index" json:"created_at"`
+}
+
+func (ae *AlertEvent) BeforeCreate(tx *gorm.DB) error {
+	if ae.ID == uuid.Nil {
+		ae.ID = uuid.New()
+	}
+	return nil
+}
+
+// IPAccessRule is a project-level allow/deny entry checked before rate limiting.
+// Value is an exact IP or CIDR (e.g. 1.2.3.4 or 10.0.0.0/8).
+type IPAccessRule struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	ProjectID uuid.UUID `gorm:"type:uuid;index;not null" json:"project_id"`
+	Action    string    `gorm:"not null" json:"action"` // allow | deny
+	Value     string    `gorm:"not null" json:"value"`
+	Note      string    `json:"note"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (ip *IPAccessRule) BeforeCreate(tx *gorm.DB) error {
+	if ip.ID == uuid.Nil {
+		ip.ID = uuid.New()
+	}
+	return nil
+}
+
+type RuleVersion struct {
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
+	RuleID    uuid.UUID      `gorm:"type:uuid;index;not null" json:"rule_id"`
+	ProjectID uuid.UUID      `gorm:"type:uuid;index;not null" json:"project_id"`
+	Version   int            `gorm:"not null" json:"version"`
+	Snapshot  JSONMap        `gorm:"type:jsonb;not null" json:"snapshot"`
+	CreatedBy uuid.UUID      `gorm:"type:uuid" json:"created_by"`
+	CreatedAt time.Time      `json:"created_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func (rv *RuleVersion) BeforeCreate(tx *gorm.DB) error {
+	if rv.ID == uuid.Nil {
+		rv.ID = uuid.New()
 	}
 	return nil
 }

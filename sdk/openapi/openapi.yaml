@@ -1,0 +1,439 @@
+openapi: 3.0.3
+info:
+  title: Limiter.io API
+  description: Rate-limiting and gateway API
+  version: 1.0.0
+  contact:
+    name: Limiter.io Support
+    url: https://limiter.io/support
+servers:
+  - url: https://api.limiter.io/v1
+    description: Production
+  - url: https://api.staging.limiter.io/v1
+    description: Staging
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                name: { type: string }
+      responses:
+        '201': { description: User registered }
+        '409': { description: Email already exists }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: Login successful }
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      security: [BearerAuth: []]
+      responses:
+        '200': { description: List of projects }
+    post:
+      tags: [Projects]
+      summary: Create project
+      security: [BearerAuth: []]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '201': { description: Project created }
+  /projects/{id}:
+    get:
+      tags: [Projects]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Project details }
+    delete:
+      tags: [Projects]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Project deleted }
+  /projects/{id}/members:
+    get:
+      tags: [Members]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: List members }
+    post:
+      tags: [Members]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: string }
+                role:
+                  type: string
+                  enum: [admin, member]
+      responses:
+        '201': { description: Member added }
+  /projects/{id}/apikeys:
+    get:
+      tags: [API Keys]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: List API keys }
+    post:
+      tags: [API Keys]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                scope:
+                  type: string
+                  enum: [gateway-only, read-only, admin]
+      responses:
+        '201': { description: API key created }
+  /projects/{id}/rules:
+    get:
+      tags: [Rules]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: List rules }
+    post:
+      tags: [Rules]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                max_req: { type: integer }
+                window_ms: { type: integer }
+                route: { type: string }
+                enabled: { type: boolean }
+                priority: { type: integer }
+                weight: { type: integer }
+      responses:
+        '201': { description: Rule created }
+  /projects/{id}/analytics:
+    get:
+      tags: [Analytics]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Analytics data }
+  /projects/{id}/quota:
+    get:
+      tags: [Quotas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Quota details }
+    put:
+      tags: [Quotas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                per_minute: { type: integer }
+                per_hour: { type: integer }
+                per_day: { type: integer }
+                per_month: { type: integer }
+      responses:
+        '200': { description: Quota updated }
+  /projects/{id}/tenant-configs:
+    get:
+      tags: [Tenants]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: List tenant configs }
+    post:
+      tags: [Tenants]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tenant_id: { type: string }
+                customer_id: { type: string }
+                max_req: { type: integer }
+                window_ms: { type: integer }
+      responses:
+        '201': { description: Tenant config created }
+  /status:
+    get:
+      tags: [Status]
+      summary: API health status
+      responses:
+        '200':
+          description: Service status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  uptime: { type: number }
+                  version: { type: string }
+  /organizations:
+    get:
+      tags: [Organizations]
+      security: [BearerAuth: []]
+      responses:
+        '200': { description: List organizations }
+    post:
+      tags: [Organizations]
+      security: [BearerAuth: []]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '201': { description: Organization created }
+  /organizations/{id}/members:
+    get:
+      tags: [Organizations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: List members }
+    post:
+      tags: [Organizations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: string }
+                role: { type: string }
+      responses:
+        '201': { description: Member added }
+  /organizations/{id}/groups:
+    get:
+      tags: [Groups]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: List groups }
+    post:
+      tags: [Groups]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '201': { description: Group created }
+  /organizations/{id}/approval-workflows:
+    get:
+      tags: [Approvals]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: List workflows }
+    post:
+      tags: [Approvals]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                action_type: { type: string }
+                min_approvers: { type: integer }
+      responses:
+        '201': { description: Workflow created }
+  /maintenance/status:
+    get:
+      tags: [Maintenance]
+      responses:
+        '200': { description: Maintenance status }
+    post:
+      tags: [Maintenance]
+      security: [BearerAuth: []]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean }
+                message: { type: string }
+      responses:
+        '200': { description: Maintenance updated }
+  /auth/passkeys/register/begin:
+    post:
+      tags: [Passkeys]
+      security: [BearerAuth: []]
+      responses:
+        '200': { description: Passkey registration challenge }
+  /auth/passkeys/register/complete:
+    post:
+      tags: [Passkeys]
+      security: [BearerAuth: []]
+      responses:
+        '200': { description: Passkey registered }
+  /auth/passkeys/login/begin:
+    post:
+      tags: [Passkeys]
+      responses:
+        '200': { description: Passkey login challenge }
+  /auth/passkeys/login/complete:
+    post:
+      tags: [Passkeys]
+      responses:
+        '200': { description: Passkey login complete }
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+    APIKey:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        key: { type: string }
+        scope: { type: string }
+        project_id: { type: string }
+    RateLimitRule:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        route: { type: string }
+        max_req: { type: integer }
+        window_ms: { type: integer }
+        enabled: { type: boolean }
+        priority: { type: integer }
+    AnalyticsData:
+      type: object
+      properties:
+        total_requests: { type: integer }
+        blocked_requests: { type: integer }
+        avg_latency_ms: { type: number }
+        p95: { type: number }
+        p99: { type: number }

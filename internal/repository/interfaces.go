@@ -20,6 +20,9 @@ type RefreshTokenRepository interface {
 	Create(ctx context.Context, rt *models.RefreshToken) error
 	GetByToken(ctx context.Context, token string) (*models.RefreshToken, error)
 	RevokeByUserID(ctx context.Context, userID uuid.UUID) error
+	// Session management
+	ListActiveByUserID(ctx context.Context, userID uuid.UUID) ([]models.RefreshToken, error)
+	RevokeByID(ctx context.Context, userID, tokenID uuid.UUID) error
 }
 
 type ProjectRepository interface {
@@ -87,6 +90,7 @@ type WebhookEventRepository interface {
 type ProjectMemberRepository interface {
 	Add(ctx context.Context, m *models.ProjectMember) error
 	Remove(ctx context.Context, projectID, memberID uuid.UUID) error
+	UpdateRole(ctx context.Context, projectID, memberID uuid.UUID, role string) error
 	ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.ProjectMember, error)
 	ListProjectIDsByUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	IsMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error)
@@ -98,8 +102,26 @@ type ProjectInviteRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.ProjectInvite, error)
 	ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.ProjectInvite, error)
 	ListPendingByEmail(ctx context.Context, email string) ([]models.ProjectInvite, error)
+	ListExpired(ctx context.Context) ([]models.ProjectInvite, error)
 	Update(ctx context.Context, inv *models.ProjectInvite) error
 	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+type AlertRepository interface {
+	CreateRule(ctx context.Context, r *models.AlertRule) error
+	GetRule(ctx context.Context, id uuid.UUID) (*models.AlertRule, error)
+	ListRulesByProject(ctx context.Context, projectID uuid.UUID) ([]models.AlertRule, error)
+	ListActiveRules(ctx context.Context) ([]models.AlertRule, error)
+	UpdateRule(ctx context.Context, r *models.AlertRule) error
+	DeleteRule(ctx context.Context, id uuid.UUID) error
+	CreateEvent(ctx context.Context, e *models.AlertEvent) error
+	ListEventsByProject(ctx context.Context, projectID uuid.UUID, limit int) ([]models.AlertEvent, error)
+}
+
+type IPAccessRepository interface {
+	Create(ctx context.Context, r *models.IPAccessRule) error
+	ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.IPAccessRule, error)
+	Delete(ctx context.Context, projectID, id uuid.UUID) error
 }
 
 type CacheRepository interface {

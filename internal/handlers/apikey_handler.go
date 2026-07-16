@@ -50,6 +50,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		ProjectID: apiKey.ProjectID,
 		Name:      apiKey.Name,
 		Prefix:    apiKey.Prefix,
+		Scope:     apiKey.Scope,
 		PlainKey:  plainKey, // visible ONLY on creation response
 		ExpiresAt: apiKey.ExpiresAt,
 		CreatedAt: apiKey.CreatedAt,
@@ -84,6 +85,7 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 			ProjectID:  key.ProjectID,
 			Name:       key.Name,
 			Prefix:     key.Prefix,
+			Scope:      key.Scope,
 			ExpiresAt:  key.ExpiresAt,
 			RevokedAt:  key.RevokedAt,
 			LastUsedAt: key.LastUsedAt,
@@ -127,6 +129,7 @@ func (h *APIKeyHandler) Rotate(c *gin.Context) {
 		ProjectID: apiKey.ProjectID,
 		Name:      apiKey.Name,
 		Prefix:    apiKey.Prefix,
+		Scope:     apiKey.Scope,
 		PlainKey:  plainKey, // visible ONLY on rotation response
 		ExpiresAt: apiKey.ExpiresAt,
 		CreatedAt: apiKey.CreatedAt,

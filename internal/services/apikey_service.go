@@ -27,6 +27,7 @@ type apiKeyService struct {
 	subRepo     repository.SubscriptionRepository
 	cacheRepo   repository.CacheRepository
 	memberRepo  repository.ProjectMemberRepository
+	auditRepo   repository.ProjectAuditRepository
 }
 
 func NewAPIKeyService(
@@ -35,6 +36,7 @@ func NewAPIKeyService(
 	subRepo repository.SubscriptionRepository,
 	cacheRepo repository.CacheRepository,
 	memberRepo repository.ProjectMemberRepository,
+	auditRepo repository.ProjectAuditRepository,
 ) APIKeyService {
 	return &apiKeyService{
 		apiKeyRepo:  apiKeyRepo,
@@ -42,7 +44,18 @@ func NewAPIKeyService(
 		subRepo:     subRepo,
 		cacheRepo:   cacheRepo,
 		memberRepo:  memberRepo,
+		auditRepo:   auditRepo,
 	}
+}
+
+func (s *apiKeyService) recordAudit(ctx context.Context, projectID, actorID uuid.UUID, action, targetType string, targetID uuid.UUID, metadata models.JSONMap) {
+	if s.auditRepo == nil {
+		return
+	}
+	_ = s.auditRepo.Create(ctx, &models.ProjectAuditEvent{
+		ProjectID: projectID, ActorID: actorID, Action: action,
+		TargetType: targetType, TargetID: targetID, Metadata: metadata,
+	})
 }
 
 func (s *apiKeyService) checkProjectAccess(ctx context.Context, userID, projectID uuid.UUID) error {
@@ -95,12 +108,18 @@ func (s *apiKeyService) CreateAPIKey(ctx context.Context, userID uuid.UUID, proj
 
 	prefix := plainKey[:12]
 
+	scope := req.Scope
+	if scope == "" {
+		scope = "gateway-only"
+	}
+
 	apiKey := &models.APIKey{
 		ID:        uuid.New(),
 		ProjectID: projectID,
 		Name:      req.Name,
 		KeyHash:   hashedKey,
 		Prefix:    prefix,
+		Scope:     scope,
 		ExpiresAt: req.ExpiresAt,
 	}
 
@@ -108,6 +127,7 @@ func (s *apiKeyService) CreateAPIKey(ctx context.Context, userID uuid.UUID, proj
 		return nil, "", err
 	}
 
+	s.recordAudit(ctx, projectID, userID, "apikey.created", "apikey", apiKey.ID, models.JSONMap{"name": apiKey.Name, "prefix": apiKey.Prefix, "scope": apiKey.Scope})
 	return apiKey, plainKey, nil
 }
 
@@ -151,6 +171,7 @@ func (s *apiKeyService) RotateAPIKey(ctx context.Context, userID uuid.UUID, proj
 		return nil, "", err
 	}
 
+	s.recordAudit(ctx, projectID, userID, "apikey.rotated", "apikey", keyID, models.JSONMap{"name": oldKey.Name})
 	return oldKey, plainKey, nil
 }
 
@@ -170,7 +191,11 @@ func (s *apiKeyService) RevokeAPIKey(ctx context.Context, userID uuid.UUID, proj
 	// Invalidate cache
 	s.cacheRepo.DeleteAPIKey(ctx, key.KeyHash)
 
-	return s.apiKeyRepo.Update(ctx, key)
+	err = s.apiKeyRepo.Update(ctx, key)
+	if err == nil {
+		s.recordAudit(ctx, projectID, userID, "apikey.revoked", "apikey", keyID, models.JSONMap{"name": key.Name})
+	}
+	return err
 }
 
 func (s *apiKeyService) DeleteAPIKey(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, keyID uuid.UUID) error {
@@ -186,5 +211,9 @@ func (s *apiKeyService) DeleteAPIKey(ctx context.Context, userID uuid.UUID, proj
 	// Invalidate cache
 	s.cacheRepo.DeleteAPIKey(ctx, key.KeyHash)
 
-	return s.apiKeyRepo.Delete(ctx, keyID)
+	err = s.apiKeyRepo.Delete(ctx, keyID)
+	if err == nil {
+		s.recordAudit(ctx, projectID, userID, "apikey.deleted", "apikey", keyID, models.JSONMap{"name": key.Name})
+	}
+	return err
 }

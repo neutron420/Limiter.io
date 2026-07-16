@@ -51,10 +51,23 @@ const platformNav = [
   { title: "API Keys", url: "/dashboard/keys", icon: Key },
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3 },
   { title: "Playground", url: "/dashboard/playground", icon: TerminalSquare },
+  { title: "Quotas", url: "/dashboard/quotas", icon: BarChart3 },
+  { title: "Tenants", url: "/dashboard/tenants", icon: Folder },
+]
+
+const orgNav = [
+  { title: "Organization", url: "/dashboard/organization", icon: BadgeCheck },
+  { title: "Groups", url: "/dashboard/groups", icon: Folder },
+  { title: "Approvals", url: "/dashboard/approvals", icon: ShieldAlert },
+  { title: "SSO", url: "/dashboard/sso", icon: Key },
+  { title: "Regions", url: "/dashboard/regions", icon: Settings2 },
+  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: TerminalSquare },
 ]
 
 const accountNav = [
-  { title: "Billing", url: "/dashboard/billing", icon: CreditCard },
+  { title: "Passkeys", url: "/dashboard/passkeys", icon: Key },
+  { title: "Notifications", url: "/dashboard/notifications", icon: Settings2 },
+  { title: "Billing & SLA", url: "/dashboard/billing", icon: CreditCard },
   { title: "Settings", url: "/dashboard/settings", icon: Settings2 },
 ]
 
@@ -141,6 +154,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">Platform</SidebarGroupLabel>
           <SidebarMenu>
             {visiblePlatformNav.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                  <Link href={item.url}>
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">Organization</SidebarGroupLabel>
+          <SidebarMenu>
+            {orgNav.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                   <Link href={item.url}>

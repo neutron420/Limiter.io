@@ -24,12 +24,16 @@ type ProjectService interface {
 	DeleteProject(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) error
 	AddMember(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, req dto.AddMemberRequest) (*models.ProjectMember, error)
 	RemoveMember(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, memberID uuid.UUID) error
+	UpdateMemberRole(ctx context.Context, userID, projectID, memberID uuid.UUID, req dto.UpdateMemberRoleRequest) (*models.ProjectMember, error)
 	ListMembers(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]models.ProjectMember, error)
 	InviteMember(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, req dto.InviteMemberRequest) (*models.ProjectInvite, error)
+	ResendInvite(ctx context.Context, userID, projectID, inviteID uuid.UUID) (*models.ProjectInvite, error)
 	AcceptInvite(ctx context.Context, userID uuid.UUID, token string) (*dto.AcceptInviteResponse, error)
 	ListInvites(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]models.ProjectInvite, error)
 	RevokeInvite(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, inviteID uuid.UUID) error
 	ListMyInvites(ctx context.Context, userID uuid.UUID) ([]models.ProjectInvite, error)
+	ListAuditEvents(ctx context.Context, userID, projectID uuid.UUID, limit, offset int) ([]models.ProjectAuditEvent, error)
+	CleanupExpiredInvites(ctx context.Context) (int64, error)
 }
 
 type projectService struct {
@@ -38,6 +42,7 @@ type projectService struct {
 	memberRepo  repository.ProjectMemberRepository
 	userRepo    repository.UserRepository
 	inviteRepo  repository.ProjectInviteRepository
+	auditRepo   repository.ProjectAuditRepository
 	mailer      mailer.Mailer
 	cfg         *config.Config
 }
@@ -48,6 +53,7 @@ func NewProjectService(
 	memberRepo repository.ProjectMemberRepository,
 	userRepo repository.UserRepository,
 	inviteRepo repository.ProjectInviteRepository,
+	auditRepo repository.ProjectAuditRepository,
 	mailer mailer.Mailer,
 	cfg *config.Config,
 ) ProjectService {
@@ -57,6 +63,7 @@ func NewProjectService(
 		memberRepo:  memberRepo,
 		userRepo:    userRepo,
 		inviteRepo:  inviteRepo,
+		auditRepo:   auditRepo,
 		mailer:      mailer,
 		cfg:         cfg,
 	}
@@ -156,7 +163,11 @@ func (s *projectService) DeleteProject(ctx context.Context, userID uuid.UUID, pr
 		return errors.New("unauthorized to delete this project")
 	}
 
-	return s.projectRepo.Delete(ctx, projectID)
+	err = s.projectRepo.Delete(ctx, projectID)
+	if err == nil {
+		s.recordAudit(ctx, projectID, userID, "project.deleted", "project", projectID, models.JSONMap{"name": project.Name})
+	}
+	return err
 }
 
 func (s *projectService) AddMember(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, req dto.AddMemberRequest) (*models.ProjectMember, error) {
@@ -213,7 +224,42 @@ func (s *projectService) RemoveMember(ctx context.Context, userID uuid.UUID, pro
 		}
 	}
 
-	return s.memberRepo.Remove(ctx, projectID, memberID)
+	err = s.memberRepo.Remove(ctx, projectID, memberID)
+	if err == nil {
+		s.recordAudit(ctx, projectID, userID, "member.removed", "member", memberID, nil)
+	}
+	return err
+}
+
+func (s *projectService) UpdateMemberRole(ctx context.Context, userID, projectID, memberID uuid.UUID, req dto.UpdateMemberRoleRequest) (*models.ProjectMember, error) {
+	role := roleForProject(ctx, s.projectRepo, s.memberRepo, userID, projectID)
+	if role != "owner" && role != "admin" {
+		return nil, errors.New("insufficient role: only owners and admins can update member roles")
+	}
+	if req.Role != "admin" && req.Role != "member" {
+		return nil, errors.New("invalid role")
+	}
+
+	members, err := s.memberRepo.ListByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	for _, member := range members {
+		if member.ID != memberID {
+			continue
+		}
+		if member.Role == req.Role {
+			return &member, nil
+		}
+		if err := s.memberRepo.UpdateRole(ctx, projectID, memberID, req.Role); err != nil {
+			return nil, err
+		}
+		member.Role = req.Role
+		s.recordAudit(ctx, projectID, userID, "member.role_updated", "member", memberID, models.JSONMap{"email": member.Email, "role": req.Role})
+		return &member, nil
+	}
+
+	return nil, errors.New("member not found")
 }
 
 func (s *projectService) ListMembers(ctx context.Context, userID uuid.UUID, projectID uuid.UUID) ([]models.ProjectMember, error) {
@@ -305,6 +351,8 @@ func (s *projectService) InviteMember(ctx context.Context, userID uuid.UUID, pro
 		return nil, errors.New("failed to create invite")
 	}
 
+	s.recordAudit(ctx, projectID, userID, "invite.created", "invite", invite.ID, models.JSONMap{"email": req.Email, "role": req.Role})
+
 	// Send invitation email
 	inviteURL := fmt.Sprintf("%s/accept-invite?token=%s", strings.TrimRight(s.cfg.AppBaseURL, "/"), rawToken)
 	subject := fmt.Sprintf("You've been invited to %q on Limiter.io", proj.Name)
@@ -366,6 +414,8 @@ func (s *projectService) AcceptInvite(ctx context.Context, userID uuid.UUID, raw
 		return nil, errors.New("failed to add member")
 	}
 
+	s.recordAudit(ctx, invite.ProjectID, userID, "invite.accepted", "invite", invite.ID, models.JSONMap{"role": invite.Role})
+
 	// Update invite status
 	invite.Status = "accepted"
 	now := time.Now()
@@ -419,7 +469,69 @@ func (s *projectService) RevokeInvite(ctx context.Context, userID uuid.UUID, pro
 
 	// Update status to revoked
 	invite.Status = "revoked"
-	return s.inviteRepo.Update(ctx, invite)
+	if err := s.inviteRepo.Update(ctx, invite); err != nil {
+		return err
+	}
+	s.recordAudit(ctx, projectID, userID, "invite.revoked", "invite", inviteID, nil)
+	return nil
+}
+
+func (s *projectService) ResendInvite(ctx context.Context, userID, projectID, inviteID uuid.UUID) (*models.ProjectInvite, error) {
+	proj, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		return nil, errors.New("project not found")
+	}
+	role := roleForProject(ctx, s.projectRepo, s.memberRepo, userID, projectID)
+	if role != "owner" && role != "admin" {
+		return nil, errors.New("insufficient role: only owners and admins can resend invitations")
+	}
+	invite, err := s.inviteRepo.GetByID(ctx, inviteID)
+	if err != nil {
+		return nil, errors.New("invite not found")
+	}
+	if invite.ProjectID != projectID {
+		return nil, errors.New("invite does not belong to this project")
+	}
+	if invite.Status != "pending" {
+		return nil, errors.New("can only resend pending invites")
+	}
+	caller, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, errors.New("failed to get caller info")
+	}
+	rawToken, err := utils.GenerateRandomToken(32)
+	if err != nil {
+		return nil, errors.New("failed to generate invite token")
+	}
+	tokenHash := utils.HashAPIKey(rawToken)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+	invite.TokenHash = tokenHash
+	invite.ExpiresAt = expiresAt
+	invite.InvitedBy = userID
+	invite.CreatedAt = time.Now()
+	if err := s.inviteRepo.Update(ctx, invite); err != nil {
+		return nil, errors.New("failed to update invite")
+	}
+	s.recordAudit(ctx, projectID, userID, "invite.resend", "invite", invite.ID, models.JSONMap{"email": invite.Email, "role": invite.Role})
+	inviteURL := fmt.Sprintf("%s/accept-invite?token=%s", strings.TrimRight(s.cfg.AppBaseURL, "/"), rawToken)
+	subject := fmt.Sprintf("Reminder: You've been invited to %q on Limiter.io", proj.Name)
+	htmlBody := s.buildInviteEmailHTML(proj.Name, caller.Email, invite.Role, inviteURL, rawToken)
+	if err := s.mailer.Send(ctx, invite.Email, subject, htmlBody); err != nil {
+		fmt.Printf("Failed to resend invitation email: %v\n", err)
+	}
+	return invite, nil
+}
+
+func (s *projectService) CleanupExpiredInvites(ctx context.Context) (int64, error) {
+	expired, err := s.inviteRepo.ListExpired(ctx)
+	if err != nil {
+		return 0, err
+	}
+	for _, inv := range expired {
+		inv.Status = "expired"
+		_ = s.inviteRepo.Update(ctx, &inv)
+	}
+	return int64(len(expired)), nil
 }
 
 func (s *projectService) ListMyInvites(ctx context.Context, userID uuid.UUID) ([]models.ProjectInvite, error) {
@@ -429,6 +541,21 @@ func (s *projectService) ListMyInvites(ctx context.Context, userID uuid.UUID) ([
 	}
 
 	return s.inviteRepo.ListPendingByEmail(ctx, user.Email)
+}
+
+func (s *projectService) recordAudit(ctx context.Context, projectID, actorID uuid.UUID, action, targetType string, targetID uuid.UUID, metadata models.JSONMap) {
+	if s.auditRepo == nil {
+		return
+	}
+	_ = s.auditRepo.Create(ctx, &models.ProjectAuditEvent{ProjectID: projectID, ActorID: actorID, Action: action, TargetType: targetType, TargetID: targetID, Metadata: metadata})
+}
+
+func (s *projectService) ListAuditEvents(ctx context.Context, userID, projectID uuid.UUID, limit, offset int) ([]models.ProjectAuditEvent, error) {
+	role := roleForProject(ctx, s.projectRepo, s.memberRepo, userID, projectID)
+	if role != "owner" && role != "admin" {
+		return nil, errors.New("insufficient role: only owners and admins can view audit events")
+	}
+	return s.auditRepo.ListByProject(ctx, projectID, limit, offset)
 }
 
 // Role helper functions for RBAC (package-level for shared use)

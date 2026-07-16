@@ -27,6 +27,7 @@ type policyService struct {
 	projectRepo repository.ProjectRepository
 	subRepo     repository.SubscriptionRepository
 	memberRepo  repository.ProjectMemberRepository
+	auditRepo   repository.ProjectAuditRepository
 }
 
 func NewPolicyService(
@@ -34,13 +35,25 @@ func NewPolicyService(
 	projectRepo repository.ProjectRepository,
 	subRepo repository.SubscriptionRepository,
 	memberRepo repository.ProjectMemberRepository,
+	auditRepo repository.ProjectAuditRepository,
 ) PolicyService {
 	return &policyService{
 		ruleRepo:    ruleRepo,
 		projectRepo: projectRepo,
 		subRepo:     subRepo,
 		memberRepo:  memberRepo,
+		auditRepo:   auditRepo,
 	}
+}
+
+func (s *policyService) recordAudit(ctx context.Context, projectID, actorID uuid.UUID, action, targetType string, targetID uuid.UUID, metadata models.JSONMap) {
+	if s.auditRepo == nil {
+		return
+	}
+	_ = s.auditRepo.Create(ctx, &models.ProjectAuditEvent{
+		ProjectID: projectID, ActorID: actorID, Action: action,
+		TargetType: targetType, TargetID: targetID, Metadata: metadata,
+	})
 }
 
 func (s *policyService) checkProjectAccess(ctx context.Context, userID, projectID uuid.UUID) error {
@@ -114,6 +127,7 @@ func (s *policyService) CreateRule(ctx context.Context, userID uuid.UUID, projec
 		return nil, err
 	}
 
+	s.recordAudit(ctx, projectID, userID, "rule.created", "rule", rule.ID, models.JSONMap{"name": rule.Name, "algorithm": rule.Algorithm, "route": rule.RoutePattern})
 	return rule, nil
 }
 
@@ -213,6 +227,7 @@ func (s *policyService) UpdateRule(ctx context.Context, userID uuid.UUID, projec
 		return nil, err
 	}
 
+	s.recordAudit(ctx, projectID, userID, "rule.updated", "rule", ruleID, models.JSONMap{"name": rule.Name})
 	return rule, nil
 }
 
@@ -230,7 +245,11 @@ func (s *policyService) DeleteRule(ctx context.Context, userID uuid.UUID, projec
 		return errors.New("rule does not belong to this project")
 	}
 
-	return s.ruleRepo.Delete(ctx, ruleID)
+	err = s.ruleRepo.Delete(ctx, ruleID)
+	if err == nil {
+		s.recordAudit(ctx, projectID, userID, "rule.deleted", "rule", ruleID, models.JSONMap{"name": rule.Name})
+	}
+	return err
 }
 
 func (s *policyService) SimulateRule(ctx context.Context, userID uuid.UUID, projectID uuid.UUID, ruleID uuid.UUID, numRequests int, reqsPerSecond float64) ([]dto.SimulationStep, error) {

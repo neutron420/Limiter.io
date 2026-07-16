@@ -25,6 +25,8 @@ type Config struct {
 	KafkaBrokers string `mapstructure:"KAFKA_BROKERS"` // comma-separated
 	KafkaTopic   string `mapstructure:"KAFKA_TOPIC"`
 	KafkaGroupID string `mapstructure:"KAFKA_GROUP_ID"`
+	KafkaDLQTopic string `mapstructure:"KAFKA_DLQ_TOPIC"`
+	OTelEndpoint string `mapstructure:"OTEL_ENDPOINT"`
 	JWTSecret    string `mapstructure:"JWT_SECRET"`
 	JWTAccessTTL time.Duration `mapstructure:"JWT_ACCESS_TTL"`
 	JWTRefreshTTL time.Duration `mapstructure:"JWT_REFRESH_TTL"`
@@ -64,6 +66,8 @@ func LoadConfig(path string) (*Config, error) {
 	viper.SetDefault("KAFKA_BROKERS", "localhost:9092")
 	viper.SetDefault("KAFKA_TOPIC", "api_logs")
 	viper.SetDefault("KAFKA_GROUP_ID", "analytics_consumers")
+	viper.SetDefault("KAFKA_DLQ_TOPIC", "api_logs_dlq")
+	viper.SetDefault("OTEL_ENDPOINT", "localhost:4317")
 	viper.SetDefault("JWT_SECRET", "super_secret_jwt_key_please_change_in_production")
 	viper.SetDefault("JWT_ACCESS_TTL", 15*time.Minute)
 	viper.SetDefault("JWT_REFRESH_TTL", 7*24*time.Hour)

@@ -16,6 +16,7 @@ import (
 	"limiter.io/internal/handlers"
 	"limiter.io/internal/kafka"
 	"limiter.io/internal/mailer"
+	"limiter.io/internal/middleware"
 	"limiter.io/internal/ratelimiter"
 	internalredis "limiter.io/internal/redis"
 	"limiter.io/internal/repository/postgres"
@@ -64,6 +65,12 @@ func main() {
 	}
 	logger.Info("Connected to PostgreSQL database successfully")
 
+	sqlDB, err := db.DB()
+	if err != nil {
+		logger.Fatal("Failed to access SQL connection pool", zap.Error(err))
+	}
+	defer sqlDB.Close()
+
 	// 4. Run Migrations and Seeding
 	if err := database.MigrateAndSeed(db, cfg); err != nil {
 		logger.Fatal("Database migration & seeding failed", zap.Error(err))
@@ -97,17 +104,20 @@ func main() {
 	webhookRepo := postgres.NewWebhookEventRepository(db)
 	memberRepo := postgres.NewProjectMemberRepository(db)
 	inviteRepo := postgres.NewProjectInviteRepository(db)
+	auditRepo := postgres.NewProjectAuditRepository(db)
 
 	// Transactional email (Resend, or logged in dev when no key)
 	mail := mailer.New(cfg.ResendAPIKey, cfg.ResendFrom)
 
 	// 8. Initialize Services
 	authService := services.NewAuthService(userRepo, rtRepo, subRepo, cacheRepo, prtRepo, mail, cfg)
-	projService := services.NewProjectService(projRepo, subRepo, memberRepo, userRepo, inviteRepo, mail, cfg)
-	keyService := services.NewAPIKeyService(keyRepo, projRepo, subRepo, cacheRepo, memberRepo)
-	policyService := services.NewPolicyService(ruleRepo, projRepo, subRepo, memberRepo)
+	projService := services.NewProjectService(projRepo, subRepo, memberRepo, userRepo, inviteRepo, auditRepo, mail, cfg)
+	keyService := services.NewAPIKeyService(keyRepo, projRepo, subRepo, cacheRepo, memberRepo, auditRepo)
+	policyService := services.NewPolicyService(ruleRepo, projRepo, subRepo, memberRepo, auditRepo)
 	subService := services.NewSubscriptionService(subRepo, cacheRepo, projRepo, analRepo)
-	analService := services.NewAnalyticsService(analRepo, projRepo, memberRepo)
+	_ = analRepo // used by analHandler
+	_ = projRepo
+	_ = memberRepo
 
 	// Rate limiting engine
 	redisLimiter := ratelimiter.NewRedisRateLimiter(rc)
@@ -116,16 +126,114 @@ func main() {
 	hub := internalws.NewHub()
 	go hub.Run()
 
+	// Initialize alert service and start the periodic evaluator
+	alertService := services.NewAlertService(
+		postgres.NewAlertRepository(db),
+		postgres.NewAnalyticsRepository(db),
+		projRepo, memberRepo, mail,
+	)
+	alertCtx, alertCancel := context.WithCancel(context.Background())
+	alertService.StartEvaluator(alertCtx, 1*time.Minute)
+
+	// IP access service
+	ipAccessRepo := postgres.NewIPAccessRepository(db)
+	ipAccessService := services.NewIPAccessService(ipAccessRepo, projRepo, memberRepo)
+
+	// Security service (MFA, sessions)
+	securityService := services.NewSecurityService(userRepo, rtRepo)
+
+	// Organization, Notification, Approval services
+	orgService := services.NewOrganizationService(db)
+	notifService := services.NewNotificationService(db)
+	approvalService := services.NewApprovalService(db)
+	quotaService := services.NewQuotaService(db)
+	analyticsDataSvc := services.NewAnalyticsDataService(db)
+	passkeyService := services.NewPasskeyService(db)
+	immutableAuditService := services.NewImmutableAuditService(db)
+	billingSvc := services.NewBillingService(db)
+	sandboxService := services.NewSandboxService(db)
+
+	// Use services (passed to handlers)
+	_ = orgService
+	_ = notifService
+	_ = approvalService
+	_ = quotaService
+	_ = analyticsDataSvc
+	_ = passkeyService
+	_ = immutableAuditService
+	_ = billingSvc
+	_ = sandboxService
+
+	// Key rotation reminder service
+	keyRotationService := services.NewKeyRotationService(db)
+	keyRotationService.StartRotationChecker(24 * time.Hour)
+
+	// Initialize maintenance mode
+	middleware.InitMaintenance(db)
+
 	// 9. Initialize Handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	projHandler := handlers.NewProjectHandler(projService)
 	keyHandler := handlers.NewAPIKeyHandler(keyService)
 	policyHandler := handlers.NewPolicyHandler(policyService)
 	subHandler := handlers.NewSubscriptionHandler(subService)
-	analHandler := handlers.NewAnalyticsHandler(analService)
+	analHandler := handlers.NewAnalyticsHandler(analRepo, db)
 	healthHandler := handlers.NewHealthHandler(db, rc.Client, cfg)
 	wsHandler := handlers.NewWSHandler(hub, projRepo, memberRepo)
 	billingHandler := handlers.NewBillingHandler(cfg, userRepo, subService, webhookRepo)
+	billingHandler.SetDB(db) // enable billing DB features
+	securityHandler := handlers.NewSecurityHandler(securityService)
+	ipAccessHandler := handlers.NewIPAccessHandler(ipAccessService)
+	notifHandler := handlers.NewNotificationHandler(db)
+	orgHandler := handlers.NewOrganizationHandler(db)
+	approvalH := handlers.NewApprovalHandler(db)
+	quotaH := handlers.NewQuotaHandler(db)
+	tenantHandler := handlers.NewTenantHandler(db)
+	// analyticsFullHandler not needed separately; analHandler covers all analytics routes
+	passkeyHandler := handlers.NewPasskeyHandler(db)
+	immutableAuditHandler := handlers.NewImmutableAuditHandler(db)
+	statusHandler := handlers.NewStatusHandler(db, "1.0.0")
+	sandboxHandler := handlers.NewSandboxHandler(db)
+	maintenanceHandler := handlers.NewMaintenanceHandler()
+	ssoHandler := handlers.NewSSOHandler()
+
+	// Start background analytics retention cleanup
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				deleted, err := analRepo.PurgeExpiredByPlan(context.Background())
+				if err != nil {
+					logger.Warn("analytics retention cleanup failed", zap.Error(err))
+				} else if deleted > 0 {
+					logger.Info("analytics retention cleanup completed", zap.Int64("deleted", deleted))
+				}
+			case <-alertCtx.Done():
+				return
+			}
+		}
+	}()
+
+	// Start background invite expiration cleanup
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				cleaned, err := projService.CleanupExpiredInvites(context.Background())
+				if err != nil {
+					logger.Warn("invite expiration cleanup failed", zap.Error(err))
+				} else if cleaned > 0 {
+					logger.Info("expired invites cleaned up", zap.Int64("count", cleaned))
+				}
+			case <-alertCtx.Done():
+				return
+			}
+		}
+	}()
 
 	// 10. Start Gin Engine
 	if cfg.Env == "production" {
@@ -134,25 +242,38 @@ func main() {
 	r := gin.New()
 
 	deliveryhttp.SetupRouter(deliveryhttp.RouterConfig{
-		Engine:         r,
-		Cfg:            cfg,
-		AuthHandler:    authHandler,
-		ProjHandler:    projHandler,
-		KeyHandler:     keyHandler,
-		PolicyHandler:  policyHandler,
-		SubHandler:     subHandler,
-		AnalHandler:    analHandler,
-		HealthHandler:  healthHandler,
-		WSHandler:      wsHandler,
-		BillingHandler: billingHandler,
-		Hub:            hub,
-		Limiter:        redisLimiter,
-		RuleRepo:       ruleRepo,
-		KeyRepo:        keyRepo,
-		CacheRepo:      cacheRepo,
-		AnalRepo:       analRepo,
-		Producer:       producer,
-		RedisClient:    rc.Client,
+		Engine:                r,
+		Cfg:                   cfg,
+		AuthHandler:           authHandler,
+		ProjHandler:           projHandler,
+		KeyHandler:            keyHandler,
+		PolicyHandler:         policyHandler,
+		SubHandler:            subHandler,
+		AnalHandler:           analHandler,
+		HealthHandler:         healthHandler,
+		WSHandler:             wsHandler,
+		BillingHandler:        billingHandler,
+		SecurityHandler:       securityHandler,
+		IPAccessHandler:       ipAccessHandler,
+		NotifHandler:          notifHandler,
+		OrgHandler:            orgHandler,
+		ApprovalHandler:       approvalH,
+		QuotaHandler:          quotaH,
+		TenantHandler:         tenantHandler,
+		PasskeyHandler:        passkeyHandler,
+		ImmutableAuditHandler: immutableAuditHandler,
+		StatusHandler:         statusHandler,
+		SandboxHandler:        sandboxHandler,
+		MaintenanceHandler:    maintenanceHandler,
+		SSOHandler:            ssoHandler,
+		Hub:                   hub,
+		Limiter:               redisLimiter,
+		RuleRepo:              ruleRepo,
+		KeyRepo:               keyRepo,
+		CacheRepo:             cacheRepo,
+		AnalRepo:              analRepo,
+		Producer:              producer,
+		RedisClient:           rc.Client,
 	})
 
 	server := &http.Server{
@@ -181,6 +302,9 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("HTTP Server forced to shutdown", zap.Error(err))
 	}
+
+	logger.Info("Stopping background workers...")
+	alertCancel()
 
 	logger.Info("Closing Kafka producer connection...")
 	if err := producer.Close(); err != nil {

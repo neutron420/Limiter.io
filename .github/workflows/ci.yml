@@ -7,6 +7,27 @@ on:
     branches: [ main ]
 
 jobs:
+  security-scan:
+    name: Security & Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Run Gosec
+        uses: securego/gosec@master
+        with:
+          args: ./...
+      - name: Run Trivy Vulnerability Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      - name: Check Dependencies
+        run: |
+          go mod verify
+          go vet ./...
   backend-test:
     name: Backend Test & Build
     runs-on: ubuntu-latest

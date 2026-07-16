@@ -260,11 +260,43 @@ func NewAnalyticsRepository(db *gorm.DB) repository.AnalyticsRepository {
 	return &analyticsRepo{db: db}
 }
 
-// PurgeExpiredByPlan removes expired analytics logs; implemented as a no-op
-// to satisfy the repository.AnalyticsRepository interface. Returns the
-// number of deleted records (0 for no-op) and an error if any.
+// PurgeExpiredByPlan removes analytics logs older than each plan's retention
+// window. It queries plans and their associated subscriptions, then deletes
+// logs for each retention tier.
 func (r *analyticsRepo) PurgeExpiredByPlan(ctx context.Context) (int64, error) {
-	return 0, nil
+	var total int64
+	var plans []models.Plan
+	if err := r.db.WithContext(ctx).Find(&plans).Error; err != nil {
+		return 0, err
+	}
+	for _, plan := range plans {
+		if plan.AnalyticsRetentionDays <= 0 {
+			continue
+		}
+		cutoff := time.Now().Add(-time.Duration(plan.AnalyticsRetentionDays) * 24 * time.Hour)
+		var subUserIDs []uuid.UUID
+		r.db.WithContext(ctx).Model(&models.Subscription{}).
+			Where("plan_id = ? AND status = ?", plan.ID, "active").
+			Pluck("user_id", &subUserIDs)
+		if len(subUserIDs) == 0 {
+			continue
+		}
+		var projectIDs []uuid.UUID
+		r.db.WithContext(ctx).Model(&models.Project{}).
+			Where("user_id IN ?", subUserIDs).
+			Pluck("id", &projectIDs)
+		if len(projectIDs) == 0 {
+			continue
+		}
+		result := r.db.WithContext(ctx).
+			Where("project_id IN ? AND timestamp < ?", projectIDs, cutoff).
+			Delete(&models.AnalyticsLog{})
+		if result.Error != nil {
+			return total, result.Error
+		}
+		total += result.RowsAffected
+	}
+	return total, nil
 }
 
 func (r *analyticsRepo) GetAggregatedStats(ctx context.Context, projectID uuid.UUID, start, end time.Time) (map[string]interface{}, error) {
@@ -470,6 +502,12 @@ func (r *projectMemberRepo) Remove(ctx context.Context, projectID, memberID uuid
 		Delete(&models.ProjectMember{}).Error
 }
 
+func (r *projectMemberRepo) UpdateRole(ctx context.Context, projectID, memberID uuid.UUID, role string) error {
+	return r.db.WithContext(ctx).
+		Model(&models.ProjectMember{}).
+		Where("project_id = ? AND id = ?", projectID, memberID).
+		Update("role", role).Error
+}
 func (r *projectMemberRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.ProjectMember, error) {
 	var members []models.ProjectMember
 	err := r.db.WithContext(ctx).Where("project_id = ?", projectID).Find(&members).Error
@@ -548,6 +586,111 @@ func (r *projectInviteRepo) Update(ctx context.Context, inv *models.ProjectInvit
 	return r.db.WithContext(ctx).Save(inv).Error
 }
 
+func (r *projectInviteRepo) ListExpired(ctx context.Context) ([]models.ProjectInvite, error) {
+	var invites []models.ProjectInvite
+	err := r.db.WithContext(ctx).
+		Where("status = ? AND expires_at < NOW()", "pending").
+		Find(&invites).Error
+	return invites, err
+}
+
 func (r *projectInviteRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Delete(&models.ProjectInvite{}, "id = ?", id).Error
+}
+
+// Session management for refresh tokens
+func (r *refreshTokenRepo) ListActiveByUserID(ctx context.Context, userID uuid.UUID) ([]models.RefreshToken, error) {
+	var tokens []models.RefreshToken
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND revoked = false AND expires_at > NOW()", userID).
+		Order("created_at DESC").
+		Find(&tokens).Error
+	return tokens, err
+}
+
+func (r *refreshTokenRepo) RevokeByID(ctx context.Context, userID, tokenID uuid.UUID) error {
+	return r.db.WithContext(ctx).Model(&models.RefreshToken{}).
+		Where("id = ? AND user_id = ?", tokenID, userID).
+		Update("revoked", true).Error
+}
+
+// Alert Repo
+type alertRepo struct {
+	db *gorm.DB
+}
+
+func NewAlertRepository(db *gorm.DB) repository.AlertRepository {
+	return &alertRepo{db: db}
+}
+
+func (r *alertRepo) CreateRule(ctx context.Context, rule *models.AlertRule) error {
+	return r.db.WithContext(ctx).Create(rule).Error
+}
+
+func (r *alertRepo) GetRule(ctx context.Context, id uuid.UUID) (*models.AlertRule, error) {
+	var rule models.AlertRule
+	if err := r.db.WithContext(ctx).First(&rule, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &rule, nil
+}
+
+func (r *alertRepo) ListRulesByProject(ctx context.Context, projectID uuid.UUID) ([]models.AlertRule, error) {
+	var rules []models.AlertRule
+	err := r.db.WithContext(ctx).Where("project_id = ?", projectID).Order("created_at DESC").Find(&rules).Error
+	return rules, err
+}
+
+func (r *alertRepo) ListActiveRules(ctx context.Context) ([]models.AlertRule, error) {
+	var rules []models.AlertRule
+	err := r.db.WithContext(ctx).Where("is_active = true").Find(&rules).Error
+	return rules, err
+}
+
+func (r *alertRepo) UpdateRule(ctx context.Context, rule *models.AlertRule) error {
+	return r.db.WithContext(ctx).Save(rule).Error
+}
+
+func (r *alertRepo) DeleteRule(ctx context.Context, id uuid.UUID) error {
+	if err := r.db.WithContext(ctx).Delete(&models.AlertEvent{}, "rule_id = ?", id).Error; err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Delete(&models.AlertRule{}, "id = ?", id).Error
+}
+
+func (r *alertRepo) CreateEvent(ctx context.Context, e *models.AlertEvent) error {
+	return r.db.WithContext(ctx).Create(e).Error
+}
+
+func (r *alertRepo) ListEventsByProject(ctx context.Context, projectID uuid.UUID, limit int) ([]models.AlertEvent, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	var events []models.AlertEvent
+	err := r.db.WithContext(ctx).Where("project_id = ?", projectID).
+		Order("created_at DESC").Limit(limit).Find(&events).Error
+	return events, err
+}
+
+// IP Access Repo
+type ipAccessRepo struct {
+	db *gorm.DB
+}
+
+func NewIPAccessRepository(db *gorm.DB) repository.IPAccessRepository {
+	return &ipAccessRepo{db: db}
+}
+
+func (r *ipAccessRepo) Create(ctx context.Context, rule *models.IPAccessRule) error {
+	return r.db.WithContext(ctx).Create(rule).Error
+}
+
+func (r *ipAccessRepo) ListByProject(ctx context.Context, projectID uuid.UUID) ([]models.IPAccessRule, error) {
+	var rules []models.IPAccessRule
+	err := r.db.WithContext(ctx).Where("project_id = ?", projectID).Order("created_at DESC").Find(&rules).Error
+	return rules, err
+}
+
+func (r *ipAccessRepo) Delete(ctx context.Context, projectID, id uuid.UUID) error {
+	return r.db.WithContext(ctx).Delete(&models.IPAccessRule{}, "id = ? AND project_id = ?", id, projectID).Error
 }

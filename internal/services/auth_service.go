@@ -21,6 +21,8 @@ import (
 type AuthService interface {
 	Register(ctx context.Context, req dto.RegisterRequest) (*models.User, error)
 	Login(ctx context.Context, req dto.LoginRequest) (*dto.AuthResponse, error)
+	// LoginMFA completes a login for MFA-enabled accounts (password + TOTP code).
+	LoginMFA(ctx context.Context, req dto.MFALoginRequest) (*dto.AuthResponse, error)
 	LoginWithGoogle(ctx context.Context, req dto.GoogleLoginRequest) (*dto.AuthResponse, error)
 	Refresh(ctx context.Context, req dto.RefreshTokenRequest) (*dto.AuthResponse, error)
 	Logout(ctx context.Context, userID uuid.UUID) error
@@ -98,23 +100,13 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (*m
 	return user, nil
 }
 
-func (s *authService) Login(ctx context.Context, req dto.LoginRequest) (*dto.AuthResponse, error) {
-	user, err := s.userRepo.GetByEmail(ctx, req.Email)
-	if err != nil {
-		return nil, errors.New("invalid email or password")
-	}
-
-	if !utils.CheckPasswordHash(req.Password, user.PasswordHash) {
-		return nil, errors.New("invalid email or password")
-	}
-
-	// Generate JWT Access Token
+// issueSession creates the JWT + refresh token pair for an authenticated user.
+func (s *authService) issueSession(ctx context.Context, user *models.User) (*dto.AuthResponse, error) {
 	accessToken, err := utils.GenerateAccessToken(user.ID, user.Email, s.cfg.JWTSecret, s.cfg.JWTAccessTTL)
 	if err != nil {
 		return nil, err
 	}
 
-	// Generate secure refresh token
 	rawRefreshToken, err := utils.GenerateRandomString(32)
 	if err != nil {
 		return nil, err
@@ -137,7 +129,45 @@ func (s *authService) Login(ctx context.Context, req dto.LoginRequest) (*dto.Aut
 		RefreshToken: rawRefreshToken,
 		UserEmail:    user.Email,
 		UserID:       user.ID,
+		AvatarURL:    user.AvatarURL,
 	}, nil
+}
+
+func (s *authService) Login(ctx context.Context, req dto.LoginRequest) (*dto.AuthResponse, error) {
+	user, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, errors.New("invalid email or password")
+	}
+
+	if !utils.CheckPasswordHash(req.Password, user.PasswordHash) {
+		return nil, errors.New("invalid email or password")
+	}
+
+	// MFA-enabled accounts must complete the TOTP step — no tokens yet.
+	if user.MFAEnabled {
+		return &dto.AuthResponse{MFARequired: true, UserEmail: user.Email}, nil
+	}
+
+	return s.issueSession(ctx, user)
+}
+
+// LoginMFA validates password + TOTP code and issues the session.
+func (s *authService) LoginMFA(ctx context.Context, req dto.MFALoginRequest) (*dto.AuthResponse, error) {
+	user, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, errors.New("invalid email or password")
+	}
+	if !utils.CheckPasswordHash(req.Password, user.PasswordHash) {
+		return nil, errors.New("invalid email or password")
+	}
+	if !user.MFAEnabled || user.TOTPSecret == "" {
+		return nil, errors.New("MFA is not enabled for this account")
+	}
+	if !ValidateTOTP(req.Code, user.TOTPSecret) {
+		return nil, errors.New("invalid MFA code")
+	}
+
+	return s.issueSession(ctx, user)
 }
 
 func (s *authService) Refresh(ctx context.Context, req dto.RefreshTokenRequest) (*dto.AuthResponse, error) {

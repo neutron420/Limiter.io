@@ -42,6 +42,12 @@ func main() {
 	}
 	logger.Info("Connected to PostgreSQL successfully")
 
+	sqlDB, err := db.DB()
+	if err != nil {
+		logger.Fatal("Failed to access SQL connection pool", zap.Error(err))
+	}
+	defer sqlDB.Close()
+
 	// 4. Initialize Consumer
 	consumer := kafka.NewKafkaConsumer(cfg, db)
 	logger.Info("Initialized Kafka Consumer successfully")

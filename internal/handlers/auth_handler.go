@@ -48,6 +48,33 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
+// LoginMFA godoc
+// @Summary Login with MFA
+// @Description Completes authentication with email, password, and TOTP code for MFA-enabled accounts
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body dto.MFALoginRequest true "Login with MFA Details"
+// @Success 200 {object} dto.AuthResponse "Successful authentication"
+// @Failure 400 {object} dto.ErrorResponse "Bad Request"
+// @Failure 401 {object} dto.ErrorResponse "Unauthorized"
+// @Router /auth/login/mfa [post]
+func (h *AuthHandler) LoginMFA(c *gin.Context) {
+	var req dto.MFALoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	resp, err := h.authService.LoginMFA(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 // Login godoc
 // @Summary Authenticate user
 // @Description Logs in a developer user and issues JWT tokens

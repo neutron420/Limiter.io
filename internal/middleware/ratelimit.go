@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -87,8 +88,18 @@ func RateLimit(
 		path := strings.TrimPrefix(c.Request.URL.Path, "/api/v1/gateway")
 		var matchedRule *models.RateLimitRule
 
+		// Sort rules by priority (lower number = checked first) then by created_at
+		sortedRules := make([]models.RateLimitRule, len(rules))
+		copy(sortedRules, rules)
+		sort.SliceStable(sortedRules, func(i, j int) bool {
+			if sortedRules[i].Priority != sortedRules[j].Priority {
+				return sortedRules[i].Priority < sortedRules[j].Priority
+			}
+			return sortedRules[i].CreatedAt.Before(sortedRules[j].CreatedAt)
+		})
+
 		// Find the first matching rule
-		for _, r := range rules {
+		for _, r := range sortedRules {
 			if r.IsActive && matchRoute(r.RoutePattern, path) {
 				matchedRule = &r
 				break
@@ -104,6 +115,10 @@ func RateLimit(
 			recordAnalytics(c, projectID, apiKeyID, reqID, "allowed", "", start, analyticsChan, hub)
 			return
 		}
+
+		// Set matched rule info in context for inspector endpoint
+		c.Set("MatchedRuleName", matchedRule.Name)
+		c.Set("MatchedRuleAlgorithm", matchedRule.Algorithm)
 
 		policy := ratelimiter.Policy{
 			Limit:     matchedRule.Limit,
@@ -150,12 +165,39 @@ func RateLimit(
 			RateLimiterDecisions.WithLabelValues(projectID.String(), "blocked").Inc()
 			blockedReason := fmt.Sprintf("Rate limit exceeded for rule: %s", matchedRule.Name)
 
+			// Check for dry-run mode
+			if c.GetHeader("X-Dry-Run") == "true" {
+				c.Header("X-Dry-Run-Result", "blocked")
+				c.Header("X-Dry-Run-Rule", matchedRule.Name)
+				c.Header("X-Dry-Run-Remaining", fmt.Sprintf("%d", result.Remaining))
+				c.Header("X-Dry-Run-Reset", fmt.Sprintf("%d", int(result.Reset.Seconds())))
+				c.Set("DryRunResult", "blocked")
+				c.Next()
+				recordAnalytics(c, projectID, apiKeyID, reqID, "allowed_dry_run", blockedReason, start, analyticsChan, hub)
+				return
+			}
+
+			// Use custom 429 response if configured
+			errorMsg := "Too Many Requests. Rate limit exceeded."
+			if matchedRule.CustomResponse != "" {
+				errorMsg = matchedRule.CustomResponse
+			}
+
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, dto.ErrorResponse{
-				Error: "Too Many Requests. Rate limit exceeded.",
+				Error: errorMsg,
 			})
 
 			recordAnalytics(c, projectID, apiKeyID, reqID, "blocked", blockedReason, start, analyticsChan, hub)
 			return
+		}
+
+		// Check for dry-run allow
+		if c.GetHeader("X-Dry-Run") == "true" {
+			c.Header("X-Dry-Run-Result", "allowed")
+			c.Header("X-Dry-Run-Rule", matchedRule.Name)
+			c.Header("X-Dry-Run-Remaining", fmt.Sprintf("%d", result.Remaining))
+			c.Header("X-Dry-Run-Reset", fmt.Sprintf("%d", int(result.Reset.Seconds())))
+			c.Set("DryRunResult", "allowed")
 		}
 
 		RateLimiterDecisions.WithLabelValues(projectID.String(), "allowed").Inc()

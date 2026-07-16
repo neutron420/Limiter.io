@@ -1,0 +1,29 @@
+{
+  "snippets": [
+    {
+      "language": "curl",
+      "title": "Create a rate limit rule",
+      "code": "curl -X POST https://api.limiter.io/v1/projects/{project_id}/rules \\\n  -H \"Authorization: Bearer {api_key}\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"my-rule\", \"route\": \"/api/*\", \"max_req\": 100, \"window_ms\": 60000}'"
+    },
+    {
+      "language": "python",
+      "title": "Python client",
+      "code": "import requests\n\nAPI_KEY = \"your_api_key_here\"\nBASE_URL = \"https://api.limiter.io/v1\"\n\nheaders = {\n    \"Authorization\": f\"Bearer {API_KEY}\",\n    \"Content-Type\": \"application/json\"\n}\n\n# Create a rate limit rule\nrule = {\n    \"name\": \"api-rule\",\n    \"route\": \"/api/*\",\n    \"max_req\": 1000,\n    \"window_ms\": 60000\n}\nresponse = requests.post(f\"{BASE_URL}/projects/{project_id}/rules\",\n                         json=rule, headers=headers)\nprint(response.json())"
+    },
+    {
+      "language": "go",
+      "title": "Go client",
+      "code": "package main\n\nimport (\n\t\"bytes\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"net/http\"\n)\n\nfunc main() {\n\tapiKey := \"your_api_key_here\"\n\tprojectID := \"your_project_id\"\n\t\n\trule := map[string]interface{}{\n\t\t\"name\":     \"my-rule\",\n\t\t\"route\":    \"/api/*\",\n\t\t\"max_req\":  100,\n\t\t\"window_ms\": 60000,\n\t}\n\tbody, _ := json.Marshal(rule)\n\t\n\treq, _ := http.NewRequest(\"POST\",\n\t\tfmt.Sprintf(\"https://api.limiter.io/v1/projects/%s/rules\", projectID),\n\t\tbytes.NewBuffer(body))\n\treq.Header.Set(\"Authorization\", \"Bearer \"+apiKey)\n\treq.Header.Set(\"Content-Type\", \"application/json\")\n\t\n\tclient := &http.Client{}\n\tresp, _ := client.Do(req)\n\tdefer resp.Body.Close()\n\t\n\tvar result map[string]interface{}\n\tjson.NewDecoder(resp.Body).Decode(&result)\n\tfmt.Printf(\"Rule created: %+v\\n\", result)\n}"
+    },
+    {
+      "language": "node",
+      "title": "Node.js / TypeScript",
+      "code": "const API_KEY = 'your_api_key_here';\nconst BASE_URL = 'https://api.limiter.io/v1';\n\nasync function createRateLimitRule(projectId, rule) {\n  const response = await fetch(`${BASE_URL}/projects/${projectId}/rules`, {\n    method: 'POST',\n    headers: {\n      'Authorization': `Bearer ${API_KEY}`,\n      'Content-Type': 'application/json',\n    },\n    body: JSON.stringify(rule),\n  });\n  return response.json();\n}\n\ncreateRateLimitRule('project_id', {\n  name: 'my-rule',\n  route: '/api/*',\n  max_req: 100,\n  window_ms: 60000,\n}).then(console.log);"
+    },
+    {
+      "language": "ruby",
+      "title": "Ruby client",
+      "code": "require 'net/http'\nrequire 'json'\n\nAPI_KEY = 'your_api_key_here'\nBASE_URL = 'https://api.limiter.io/v1'\n\nuri = URI(\"#{BASE_URL}/projects/{project_id}/rules\")\nhttp = Net::HTTP.new(uri.host, uri.port)\nhttp.use_ssl = true\n\nrequest = Net::HTTP::Post.new(uri)\nrequest['Authorization'] = \"Bearer #{API_KEY}\"\nrequest['Content-Type'] = 'application/json'\nrequest.body = {\n  name: 'my-rule',\n  route: '/api/*',\n  max_req: 100,\n  window_ms: 60000\n}.to_json\n\nresponse = http.request(request)\nputs response.body"
+    }
+  ]
+}
