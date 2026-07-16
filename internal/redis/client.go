@@ -20,7 +20,7 @@ type RedisClient struct {
 	LeakyBucketSHA        string
 }
 
-//nosec
+// #nosec G101
 const (
 	tokenBucketLua = `
 local key = KEYS[1]

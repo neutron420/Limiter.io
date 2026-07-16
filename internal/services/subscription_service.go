@@ -133,7 +133,7 @@ func (s *subscriptionService) UpgradeSubscription(ctx context.Context, userID uu
 	_ = s.subRepo.CreateUpgradeHistory(ctx, history)
 
 	// Refresh cache: invalidate the old cache entry
-	s.cacheRepo.DeleteSubscription(ctx, userID)
+	_ = s.cacheRepo.DeleteSubscription(ctx, userID)
 
 	// Prefetch and store updated subscription in cache
 	updatedSub, err := s.subRepo.GetByUserID(ctx, userID)

@@ -177,9 +177,7 @@ func (s *authService) Refresh(ctx context.Context, req dto.RefreshTokenRequest) 
 	}
 
 	if rt.Revoked {
-		// Security Alert: Refresh Token Reuse!
-		// Revoke all tokens for this user for security
-		s.rtRepo.RevokeByUserID(ctx, rt.UserID)
+		_ = s.rtRepo.RevokeByUserID(ctx, rt.UserID)
 		return nil, errors.New("refresh token has been reused and revoked")
 	}
 
@@ -192,8 +190,7 @@ func (s *authService) Refresh(ctx context.Context, req dto.RefreshTokenRequest) 
 		return nil, err
 	}
 
-	// Rotate refresh token
-	s.rtRepo.RevokeByUserID(ctx, user.ID)
+	_ = s.rtRepo.RevokeByUserID(ctx, user.ID)
 
 	newRawRefreshToken, err := utils.GenerateRandomString(32)
 	if err != nil {

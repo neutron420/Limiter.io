@@ -322,7 +322,7 @@ func (s *projectService) InviteMember(ctx context.Context, userID uuid.UUID, pro
 		for _, inv := range pendingInvites {
 			if inv.ProjectID == projectID {
 				inv.Status = "revoked"
-				s.inviteRepo.Update(ctx, &inv)
+				_ = s.inviteRepo.Update(ctx, &inv)
 			}
 		}
 	}

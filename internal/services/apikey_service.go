@@ -159,8 +159,7 @@ func (s *apiKeyService) RotateAPIKey(ctx context.Context, userID uuid.UUID, proj
 		return nil, "", err
 	}
 
-	// Invalidate old key cache in Redis
-	s.cacheRepo.DeleteAPIKey(ctx, oldKey.KeyHash)
+	_ = s.cacheRepo.DeleteAPIKey(ctx, oldKey.KeyHash)
 
 	// Update existing record
 	oldKey.KeyHash = hashedKey
@@ -188,8 +187,7 @@ func (s *apiKeyService) RevokeAPIKey(ctx context.Context, userID uuid.UUID, proj
 	now := time.Now()
 	key.RevokedAt = &now
 
-	// Invalidate cache
-	s.cacheRepo.DeleteAPIKey(ctx, key.KeyHash)
+	_ = s.cacheRepo.DeleteAPIKey(ctx, key.KeyHash)
 
 	err = s.apiKeyRepo.Update(ctx, key)
 	if err == nil {
@@ -208,8 +206,7 @@ func (s *apiKeyService) DeleteAPIKey(ctx context.Context, userID uuid.UUID, proj
 		return errors.New("api key not found")
 	}
 
-	// Invalidate cache
-	s.cacheRepo.DeleteAPIKey(ctx, key.KeyHash)
+	_ = s.cacheRepo.DeleteAPIKey(ctx, key.KeyHash)
 
 	err = s.apiKeyRepo.Delete(ctx, keyID)
 	if err == nil {

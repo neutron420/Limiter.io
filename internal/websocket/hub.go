@@ -17,14 +17,13 @@ type Client struct {
 
 func (c *Client) WritePump() {
 	defer func() {
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	}()
 	for {
 		select {
 		case message, ok := <-c.Send:
 			if !ok {
-				// The hub closed the channel.
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
@@ -32,13 +31,12 @@ func (c *Client) WritePump() {
 			if err != nil {
 				return
 			}
-			w.Write(message)
+			_, _ = w.Write(message)
 
-			// Add queued chat messages to the current websocket message.
 			n := len(c.Send)
 			for i := 0; i < n; i++ {
-				w.Write([]byte{'\n'})
-				w.Write(<-c.Send)
+				_, _ = w.Write([]byte{'\n'})
+				_, _ = w.Write(<-c.Send)
 			}
 
 			if err := w.Close(); err != nil {

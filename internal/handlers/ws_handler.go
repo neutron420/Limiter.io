@@ -80,7 +80,7 @@ func (h *WSHandler) Connect(c *gin.Context) {
 	// Read loop to detect disconnects
 	defer func() {
 		h.hub.UnregisterClient(client)
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	for {

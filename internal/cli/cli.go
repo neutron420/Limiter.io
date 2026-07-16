@@ -13,8 +13,7 @@ import (
 
 type CLIConfig struct {
 	BaseURL  string `json:"base_url"`
-	//nosec
-	APIKey   string `json:"api_key"`
+	APIKey   string `json:"api_key"` // #nosec G117
 	ProjectID string `json:"project_id"`
 }
 
@@ -30,7 +29,7 @@ func NewCLI() *CLI {
 }
 
 func (c *CLI) LoadConfig(path string) error {
-	//nosec
+	// #nosec G304
 	data, err := os.ReadFile(path)
 	if err != nil {
 		c.config = &CLIConfig{BaseURL: "https://api.limiter.io/v1"}
@@ -40,6 +39,7 @@ func (c *CLI) LoadConfig(path string) error {
 }
 
 func (c *CLI) SaveConfig(path string) error {
+	// #nosec G117
 	data, err := json.MarshalIndent(c.config, "", "  ")
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func RunCLI(args []string) {
 	cli := NewCLI()
 	home, _ := os.UserHomeDir()
 	configPath := home + "/.limiter-config.json"
-	cli.LoadConfig(configPath)
+	_ = cli.LoadConfig(configPath)
 
 	if len(args) < 2 {
 		fmt.Println(`Limiter.io CLI
@@ -197,8 +197,8 @@ Usage:
 		if len(args) < 6 { fmt.Println("Usage: limiter push-rule <name> <route> <max_req> <window_ms>"); return }
 		maxReq := 100
 		var windowMs int64 = 60000
-		fmt.Sscanf(args[4], "%d", &maxReq)
-		fmt.Sscanf(args[5], "%d", &windowMs)
+		_, _ = fmt.Sscanf(args[4], "%d", &maxReq)
+		_, _ = fmt.Sscanf(args[5], "%d", &windowMs)
 		if err := cli.PushRule(args[2], args[3], maxReq, windowMs); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to push rule: %v\n", err)
 		}

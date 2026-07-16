@@ -87,7 +87,7 @@ func (kc *KafkaConsumerWithDLQ) Start(ctx context.Context) error {
 			log.Printf("Error batch inserting analytics records: %v", err)
 			for _, record := range buffer {
 				payload, _ := json.Marshal(record)
-				kc.dlq.SendToDLQ(context.Background(), kc.reader.Config().Topic, record.ID.String(), payload, err.Error(), 0)
+				_ = kc.dlq.SendToDLQ(context.Background(), kc.reader.Config().Topic, record.ID.String(), payload, err.Error(), 0)
 			}
 		} else {
 			log.Printf("Successfully inserted %d analytics records", len(buffer))
@@ -106,7 +106,7 @@ func (kc *KafkaConsumerWithDLQ) Start(ctx context.Context) error {
 			var event models.AnalyticsLog
 			if err := json.Unmarshal(msg.Value, &event); err != nil {
 				log.Printf("Failed to unmarshal analytics log, sending to DLQ: %v", err)
-				kc.dlq.SendToDLQ(ctx, kc.reader.Config().Topic, string(msg.Key), msg.Value, err.Error(), 0)
+				_ = kc.dlq.SendToDLQ(ctx, kc.reader.Config().Topic, string(msg.Key), msg.Value, err.Error(), 0)
 				continue
 			}
 			buffer = append(buffer, event)
@@ -125,10 +125,10 @@ func (kc *KafkaConsumerWithDLQ) Start(ctx context.Context) error {
 
 func (kc *KafkaConsumerWithDLQ) Close() error {
 	if kc.reader != nil {
-		kc.reader.Close()
+		_ = kc.reader.Close()
 	}
 	if kc.dlq != nil {
-		kc.dlq.Close()
+		_ = kc.dlq.Close()
 	}
 	return nil
 }
