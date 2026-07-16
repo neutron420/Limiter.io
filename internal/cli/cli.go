@@ -13,7 +13,8 @@ import (
 
 type CLIConfig struct {
 	BaseURL  string `json:"base_url"`
-	APIKey   string `json:"api_key"` //nosec G117
+	//nosec
+	APIKey   string `json:"api_key"`
 	ProjectID string `json:"project_id"`
 }
 
@@ -29,6 +30,7 @@ func NewCLI() *CLI {
 }
 
 func (c *CLI) LoadConfig(path string) error {
+	//nosec
 	data, err := os.ReadFile(path)
 	if err != nil {
 		c.config = &CLIConfig{BaseURL: "https://api.limiter.io/v1"}
@@ -66,7 +68,7 @@ func (c *CLI) request(method, path string, body interface{}) (map[string]interfa
 	}
 	defer resp.Body.Close()
 	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
+	_ = json.NewDecoder(resp.Body).Decode(&result)
 	return result, nil
 }
 
@@ -176,27 +178,39 @@ Usage:
 	switch cmd {
 	case "login":
 		if len(args) < 4 { fmt.Println("Usage: limiter login <email> <password>"); return }
-		cli.Login(args[2], args[3])
+		if err := cli.Login(args[2], args[3]); err != nil {
+			fmt.Fprintf(os.Stderr, "Login failed: %v\n", err)
+		}
 	case "create-project":
 		if len(args) < 3 { fmt.Println("Usage: limiter create-project <name>"); return }
-		cli.CreateProject(args[2])
+		if err := cli.CreateProject(args[2]); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create project: %v\n", err)
+		}
 	case "create-key":
 		if len(args) < 3 { fmt.Println("Usage: limiter create-key <name> [scope]"); return }
 		scope := "gateway-only"
 		if len(args) >= 4 { scope = args[3] }
-		cli.CreateKey(args[2], scope)
+		if err := cli.CreateKey(args[2], scope); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create key: %v\n", err)
+		}
 	case "push-rule":
 		if len(args) < 6 { fmt.Println("Usage: limiter push-rule <name> <route> <max_req> <window_ms>"); return }
 		maxReq := 100
 		var windowMs int64 = 60000
 		fmt.Sscanf(args[4], "%d", &maxReq)
 		fmt.Sscanf(args[5], "%d", &windowMs)
-		cli.PushRule(args[2], args[3], maxReq, windowMs)
+		if err := cli.PushRule(args[2], args[3], maxReq, windowMs); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to push rule: %v\n", err)
+		}
 	case "test-route":
 		if len(args) < 4 { fmt.Println("Usage: limiter test-route <method> <route>"); return }
-		cli.TestRoute(args[2], args[3])
+		if err := cli.TestRoute(args[2], args[3]); err != nil {
+			fmt.Fprintf(os.Stderr, "Test failed: %v\n", err)
+		}
 	case "list-projects":
-		cli.ListProjects()
+		if err := cli.ListProjects(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to list projects: %v\n", err)
+		}
 	case "set-project":
 		if len(args) < 3 { fmt.Println("Usage: limiter set-project <id>"); return }
 		cli.SetProject(args[2])

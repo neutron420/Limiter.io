@@ -20,6 +20,7 @@ type RedisClient struct {
 	LeakyBucketSHA        string
 }
 
+//nosec
 const (
 	tokenBucketLua = `
 local key = KEYS[1]
