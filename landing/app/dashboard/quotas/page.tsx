@@ -14,14 +14,14 @@ import {
   StatusBadge,
   SubmitButton,
 } from "@/components/dashboard/kit"
-import { RequireProject } from "@/components/dashboard/require-project"
+
 import { api, ApiError } from "@/lib/api"
 import { useProject } from "@/lib/project-context"
 import { canWrite } from "@/lib/rbac"
 import type { Quota } from "@/lib/types"
 
 export default function QuotasPage() {
-  const { current, role } = useProject()
+  const { current, loading: projLoading, role } = useProject()
   const canWriteProject = canWrite(role)
 
   const [quota, setQuota] = React.useState<Quota | null>(null)
@@ -75,9 +75,10 @@ export default function QuotasPage() {
     }
   }
 
+  if (projLoading || !current) return <Spinner label="LOADING PROJECT" />
+
   return (
-    <RequireProject>
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold font-heading tracking-tight">QUOTAS</h1>
@@ -91,7 +92,7 @@ export default function QuotasPage() {
           <Panel>
             <PanelHeader icon={Gauge} title="Request Quotas" />
             <div className="space-y-4">
-              <Field label="Per Minute" sub="Maximum requests allowed each minute">
+              <Field label="Per Minute" hint="Maximum requests allowed each minute">
                 <input
                   className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm focus:outline-none"
                   type="number"
@@ -101,7 +102,7 @@ export default function QuotasPage() {
                   disabled={!canWriteProject}
                 />
               </Field>
-              <Field label="Per Hour" sub="Maximum requests allowed each hour">
+              <Field label="Per Hour" hint="Maximum requests allowed each hour">
                 <input
                   className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm focus:outline-none"
                   type="number"
@@ -111,7 +112,7 @@ export default function QuotasPage() {
                   disabled={!canWriteProject}
                 />
               </Field>
-              <Field label="Per Day" sub="Maximum requests allowed each day">
+              <Field label="Per Day" hint="Maximum requests allowed each day">
                 <input
                   className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm focus:outline-none"
                   type="number"
@@ -121,7 +122,7 @@ export default function QuotasPage() {
                   disabled={!canWriteProject}
                 />
               </Field>
-              <Field label="Per Month" sub="Maximum requests allowed each month">
+              <Field label="Per Month" hint="Maximum requests allowed each month">
                 <input
                   className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm focus:outline-none"
                   type="number"
@@ -138,10 +139,10 @@ export default function QuotasPage() {
 
             {canWriteProject && (
               <div className="flex gap-2 mt-4">
-                <SubmitButton onClick={handleSave} loading={saving} icon={Save}>
+                <BrutalButton onClick={handleSave} loading={saving} icon={Save}>
                   SAVE QUOTAS
-                </SubmitButton>
-                <BrutalButton onClick={fetchQuota} variant="secondary">
+                </BrutalButton>
+                <BrutalButton onClick={fetchQuota} variant="outline">
                   <RotateCcw className="size-4" />
                   RESET
                 </BrutalButton>
@@ -150,6 +151,5 @@ export default function QuotasPage() {
           </Panel>
         )}
       </motion.div>
-    </RequireProject>
   )
 }

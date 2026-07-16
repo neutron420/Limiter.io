@@ -118,10 +118,10 @@ export default function RegionsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={r.enabled ? "active" : "disabled"} />
-                  <BrutalButton onClick={() => handleToggle(r)} variant="secondary" size="sm">
+                  <BrutalButton onClick={() => handleToggle(r)} variant="outline">
                     {r.enabled ? <ToggleRight className="size-4" /> : <ToggleLeft className="size-4" />}
                   </BrutalButton>
-                  <BrutalButton onClick={() => handleDelete(r.id)} variant="destructive" size="sm">
+                  <BrutalButton onClick={() => handleDelete(r.id)} variant="danger">
                     <Trash2 className="size-4" />
                   </BrutalButton>
                 </div>
@@ -135,7 +135,7 @@ export default function RegionsPage() {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Add Region">
         <div className="space-y-4">
-          <Field label="Region" sub="e.g. us-east-1, eu-west-1">
+          <Field label="Region" hint="e.g. us-east-1, eu-west-1">
             <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" value={region} onChange={(e) => setRegion(e.target.value)} />
           </Field>
           <Field label="Gateway URL">
@@ -145,7 +145,7 @@ export default function RegionsPage() {
             <input type="checkbox" checked={dataResidency} onChange={(e) => setDataResidency(e.target.checked)} className="size-4" />
             Enforce data residency
           </label>
-          <SubmitButton onClick={handleCreate} loading={saving} icon={Save}>CREATE</SubmitButton>
+          <BrutalButton onClick={handleCreate} loading={saving} icon={Save}>CREATE</BrutalButton>
         </div>
       </Modal>
     </motion.div>

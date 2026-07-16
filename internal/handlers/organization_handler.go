@@ -34,7 +34,10 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	h.svc.AddMember(org.ID, userID, "owner")
+	if err := h.svc.AddMember(org.ID, userID, "owner"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add owner"})
+		return
+	}
 	c.JSON(http.StatusCreated, org)
 }
 
@@ -204,7 +207,7 @@ func (h *ApprovalHandler) Reject(c *gin.Context) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	c.ShouldBindJSON(&req)
+	_ = c.ShouldBindJSON(&req)
 	userID := c.GetString("user_id")
 	if err := h.svc.Reject(c.Param("id"), userID, req.Reason); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

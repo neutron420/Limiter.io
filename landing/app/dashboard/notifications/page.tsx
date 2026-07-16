@@ -12,14 +12,14 @@ import {
   Spinner,
   SubmitButton,
 } from "@/components/dashboard/kit"
-import { RequireProject } from "@/components/dashboard/require-project"
+
 import { api, ApiError } from "@/lib/api"
 import { useProject } from "@/lib/project-context"
 import { canWrite } from "@/lib/rbac"
 import type { NotificationPreferences } from "@/lib/types"
 
 export default function NotificationsPage() {
-  const { current, role } = useProject()
+  const { current, loading: projLoading, role } = useProject()
   const canWriteProject = canWrite(role)
 
   const [prefs, setPrefs] = React.useState<NotificationPreferences | null>(null)
@@ -91,9 +91,10 @@ export default function NotificationsPage() {
     </label>
   )
 
+  if (projLoading || !current) return <Spinner label="LOADING PROJECT" />
+
   return (
-    <RequireProject>
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold font-heading tracking-tight">NOTIFICATIONS</h1>
@@ -137,8 +138,8 @@ export default function NotificationsPage() {
 
             {canWriteProject && (
               <div className="flex gap-2">
-                <SubmitButton onClick={handleSave} loading={saving} icon={Save}>SAVE PREFERENCES</SubmitButton>
-                <BrutalButton onClick={fetchPrefs} variant="secondary">
+                <BrutalButton onClick={handleSave} loading={saving} icon={Save}>SAVE PREFERENCES</BrutalButton>
+                <BrutalButton onClick={fetchPrefs} variant="outline">
                   <RotateCcw className="size-4" />
                   RESET
                 </BrutalButton>
@@ -147,6 +148,5 @@ export default function NotificationsPage() {
           </>
         )}
       </motion.div>
-    </RequireProject>
   )
 }

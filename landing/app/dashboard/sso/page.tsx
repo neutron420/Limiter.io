@@ -123,10 +123,10 @@ export default function SSOPage() {
       </div>
 
       <div className="flex gap-2">
-        <BrutalButton onClick={() => setTab("saml")} variant={tab === "saml" ? "default" : "secondary"}>
+        <BrutalButton onClick={() => setTab("saml")} variant={tab === "saml" ? "primary" : "outline"}>
           <Shield className="size-4" /> SAML
         </BrutalButton>
-        <BrutalButton onClick={() => setTab("oidc")} variant={tab === "oidc" ? "default" : "secondary"}>
+        <BrutalButton onClick={() => setTab("oidc")} variant={tab === "oidc" ? "primary" : "outline"}>
           <Key className="size-4" /> OIDC
         </BrutalButton>
       </div>
@@ -153,7 +153,7 @@ export default function SSOPage() {
             <Field label="SP ACS URL">
               <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" value={spAcsUrl} onChange={(e) => setSpAcsUrl(e.target.value)} />
             </Field>
-            <SubmitButton onClick={handleSaveSaml} loading={saving} icon={Save}>SAVE SAML</SubmitButton>
+            <BrutalButton onClick={handleSaveSaml} loading={saving} icon={Save}>SAVE SAML</BrutalButton>
           </div>
         </Panel>
       ) : (
@@ -174,7 +174,7 @@ export default function SSOPage() {
             <Field label="Scopes">
               <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" value={scopes} onChange={(e) => setScopes(e.target.value)} />
             </Field>
-            <SubmitButton onClick={handleSaveOidc} loading={saving} icon={Save}>SAVE OIDC</SubmitButton>
+            <BrutalButton onClick={handleSaveOidc} loading={saving} icon={Save}>SAVE OIDC</BrutalButton>
           </div>
         </Panel>
       )}

@@ -98,7 +98,10 @@ func (h *BillingHandler) UpdateSLAConfig(c *gin.Context) {
 		return
 	}
 	cfg.OrganizationID = c.Param("orgId")
-	h.svc.UpdateSLAConfig(&cfg)
+	if err := h.svc.UpdateSLAConfig(&cfg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, cfg)
 }
 
@@ -126,7 +129,10 @@ func (h *BillingHandler) SaveEmailTemplate(c *gin.Context) {
 		return
 	}
 	tmpl.OrganizationID = c.Param("orgId")
-	h.svc.SaveEmailTemplate(&tmpl)
+	if err := h.svc.SaveEmailTemplate(&tmpl); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, tmpl)
 }
 
@@ -163,6 +169,9 @@ func (h *BillingHandler) SaveRegionConfig(c *gin.Context) {
 		return
 	}
 	cfg.OrganizationID = c.Param("orgId")
-	h.svc.SaveRegionConfig(&cfg)
+	if err := h.svc.SaveRegionConfig(&cfg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, cfg)
 }

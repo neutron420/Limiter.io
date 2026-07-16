@@ -277,8 +277,9 @@ func main() {
 	})
 
 	server := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: r,
+		Addr:              ":" + cfg.Port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	// 11. Run Server inside a goroutine to handle graceful shutdown

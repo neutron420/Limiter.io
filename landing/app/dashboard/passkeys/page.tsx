@@ -92,7 +92,7 @@ export default function PasskeysPage() {
                     </p>
                   </div>
                 </div>
-                <BrutalButton onClick={() => handleDelete(pk.id)} variant="destructive" size="sm">
+                <BrutalButton onClick={() => handleDelete(pk.id)} variant="danger">
                   <Trash2 className="size-4" />
                 </BrutalButton>
               </div>

@@ -125,7 +125,7 @@ export default function OrganizationPage() {
 
           <Panel>
             <PanelHeader icon={Users} title="Members" action={
-              <BrutalButton onClick={() => setShowInvite(true)} size="sm" icon={UserPlus}>INVITE</BrutalButton>
+              <BrutalButton onClick={() => setShowInvite(true)} icon={UserPlus}>INVITE</BrutalButton>
             } />
             {members.length === 0 ? (
               <p className="text-sm text-muted-foreground">No members yet</p>
@@ -143,7 +143,7 @@ export default function OrganizationPage() {
                     <div className="flex items-center gap-2">
                       <StatusBadge status={m.role} />
                       {m.role !== "owner" && (
-                        <BrutalButton onClick={() => handleRemoveMember(m.id)} variant="destructive" size="sm">
+                        <BrutalButton onClick={() => handleRemoveMember(m.id)} variant="danger">
                           <Trash2 className="size-4" />
                         </BrutalButton>
                       )}
@@ -169,7 +169,7 @@ export default function OrganizationPage() {
           <Field label="Description">
             <textarea className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
-          <SubmitButton onClick={handleCreate} loading={saving} icon={Save}>CREATE</SubmitButton>
+          <BrutalButton onClick={handleCreate} loading={saving} icon={Save}>CREATE</BrutalButton>
         </div>
       </Modal>
 
@@ -184,7 +184,7 @@ export default function OrganizationPage() {
               <option value="admin">Admin</option>
             </select>
           </Field>
-          <SubmitButton onClick={handleInvite} loading={saving} icon={UserPlus}>INVITE</SubmitButton>
+          <BrutalButton onClick={handleInvite} loading={saving} icon={UserPlus}>INVITE</BrutalButton>
         </div>
       </Modal>
     </motion.div>

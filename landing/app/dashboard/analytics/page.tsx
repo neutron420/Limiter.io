@@ -346,7 +346,7 @@ export default function AnalyticsPage() {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold uppercase tracking-wider">Saved Views</h2>
-                <BrutalButton onClick={() => setShowViewModal(true)} icon={Save} size="sm">SAVE CURRENT VIEW</BrutalButton>
+                <BrutalButton onClick={() => setShowViewModal(true)} icon={Save}>SAVE CURRENT VIEW</BrutalButton>
               </div>
               {views.length === 0 ? (
                 <p className="text-xs text-muted-foreground">No saved views yet</p>
@@ -374,10 +374,10 @@ export default function AnalyticsPage() {
                     </div>
                     <input type="checkbox" checked={anomalyEnabled} onChange={(e) => setAnomalyEnabled(e.target.checked)} className="size-5 accent-foreground" />
                   </label>
-                  <Field label="Sensitivity" sub="Number of standard deviations for threshold">
+                  <Field label="Sensitivity" hint="Number of standard deviations for threshold">
                     <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" type="number" step="0.1" value={anomalySensitivity} onChange={(e) => setAnomalySensitivity(e.target.value)} />
                   </Field>
-                  <Field label="Lookback (minutes)" sub="How far back to analyze">
+                  <Field label="Lookback (minutes)" hint="How far back to analyze">
                     <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" type="number" value={anomalyLookback} onChange={(e) => setAnomalyLookback(e.target.value)} />
                   </Field>
                   <label className="flex items-center justify-between rounded-base border-2 border-foreground p-3 cursor-pointer">
@@ -394,10 +394,10 @@ export default function AnalyticsPage() {
                     </div>
                     <input type="checkbox" checked={anomalyDrop} onChange={(e) => setAnomalyDrop(e.target.checked)} className="size-5 accent-foreground" />
                   </label>
-                  <Field label="Slack Webhook" sub="Optional Slack webhook for alerts">
+                  <Field label="Slack Webhook" hint="Optional Slack webhook for alerts">
                     <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" placeholder="https://hooks.slack.com/services/..." value={anomalySlack} onChange={(e) => setAnomalySlack(e.target.value)} />
                   </Field>
-                  <SubmitButton onClick={handleSaveAnomaly} loading={savingAnomaly} icon={Save}>SAVE ANOMALY CONFIG</SubmitButton>
+                  <BrutalButton onClick={handleSaveAnomaly} loading={savingAnomaly} icon={Save}>SAVE ANOMALY CONFIG</BrutalButton>
                 </div>
               </Panel>
             </div>
@@ -410,7 +410,7 @@ export default function AnalyticsPage() {
           <Field label="View Name">
             <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" value={viewName} onChange={(e) => setViewName(e.target.value)} />
           </Field>
-          <SubmitButton onClick={handleSaveView} loading={savingView} icon={Save}>SAVE</SubmitButton>
+          <BrutalButton onClick={handleSaveView} loading={savingView} icon={Save}>SAVE</BrutalButton>
         </div>
       </Modal>
     </div>

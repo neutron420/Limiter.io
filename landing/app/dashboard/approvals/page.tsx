@@ -151,10 +151,10 @@ export default function ApprovalsPage() {
                       <p className="text-xs text-muted-foreground">by {r.requested_by}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <BrutalButton onClick={() => handleApprove(r.id)} size="sm" variant="secondary">
+                      <BrutalButton onClick={() => handleApprove(r.id)} variant="outline">
                         <ThumbsUp className="size-4" />
                       </BrutalButton>
-                      <BrutalButton onClick={() => handleReject(r.id)} size="sm" variant="destructive">
+                      <BrutalButton onClick={() => handleReject(r.id)} variant="danger">
                         <ThumbsDown className="size-4" />
                       </BrutalButton>
                     </div>
@@ -206,7 +206,7 @@ export default function ApprovalsPage() {
           <Field label="Min Approvers">
             <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" type="number" min="1" value={minApprovers} onChange={(e) => setMinApprovers(e.target.value)} />
           </Field>
-          <SubmitButton onClick={handleCreateWorkflow} loading={saving} icon={Save}>CREATE</SubmitButton>
+          <BrutalButton onClick={handleCreateWorkflow} loading={saving} icon={Save}>CREATE</BrutalButton>
         </div>
       </Modal>
     </motion.div>

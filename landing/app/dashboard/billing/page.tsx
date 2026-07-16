@@ -324,10 +324,10 @@ export default function BillingPage() {
             sla ? <StatusBadge status="configured" /> : <StatusBadge status="not set" />
           } />
           <div className="space-y-4">
-            <Field label="Uptime SLA (%)" sub="Target uptime percentage">
+            <Field label="Uptime SLA (%)" hint="Target uptime percentage">
               <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" type="number" step="0.1" value={uptimeSla} onChange={(e) => setUptimeSla(e.target.value)} />
             </Field>
-            <Field label="P99 Response Time (ms)" sub="Maximum acceptable P99 latency">
+            <Field label="P99 Response Time (ms)" hint="Maximum acceptable P99 latency">
               <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" type="number" value={responseTimeP99} onChange={(e) => setResponseTimeP99(e.target.value)} />
             </Field>
             <Field label="Support Level">
@@ -337,10 +337,10 @@ export default function BillingPage() {
                 <option value="enterprise">Enterprise</option>
               </select>
             </Field>
-            <Field label="Support Contact" sub="Email or Slack channel for support">
+            <Field label="Support Contact" hint="Email or Slack channel for support">
               <input className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" value={supportContact} onChange={(e) => setSupportContact(e.target.value)} />
             </Field>
-            <SubmitButton onClick={handleSaveSla} loading={savingSla} icon={Save}>SAVE SLA</SubmitButton>
+            <BrutalButton onClick={handleSaveSla} loading={savingSla} icon={Save}>SAVE SLA</BrutalButton>
           </div>
         </Panel>
       )}

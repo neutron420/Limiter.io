@@ -98,7 +98,7 @@ export default function GroupsPage() {
                   <p className="font-mono text-sm font-bold">{g.name}</p>
                   {g.description && <p className="text-xs text-muted-foreground">{g.description}</p>}
                 </div>
-                <BrutalButton onClick={() => handleDelete(g.id)} variant="destructive" size="sm">
+                <BrutalButton onClick={() => handleDelete(g.id)} variant="danger">
                   <Trash2 className="size-4" />
                 </BrutalButton>
               </div>
@@ -117,7 +117,7 @@ export default function GroupsPage() {
           <Field label="Description">
             <textarea className="w-full rounded-base border-2 border-foreground bg-main px-3 py-2 font-mono text-sm" value={desc} onChange={(e) => setDesc(e.target.value)} />
           </Field>
-          <SubmitButton onClick={handleCreate} loading={saving} icon={Save}>CREATE</SubmitButton>
+          <BrutalButton onClick={handleCreate} loading={saving} icon={Save}>CREATE</BrutalButton>
         </div>
       </Modal>
     </motion.div>

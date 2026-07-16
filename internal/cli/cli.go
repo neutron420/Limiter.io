@@ -13,7 +13,7 @@ import (
 
 type CLIConfig struct {
 	BaseURL  string `json:"base_url"`
-	APIKey   string `json:"api_key"`
+	APIKey   string `json:"api_key"` //nosec G117
 	ProjectID string `json:"project_id"`
 }
 
@@ -38,8 +38,11 @@ func (c *CLI) LoadConfig(path string) error {
 }
 
 func (c *CLI) SaveConfig(path string) error {
-	data, _ := json.MarshalIndent(c.config, "", "  ")
-	return os.WriteFile(path, data, 0644)
+	data, err := json.MarshalIndent(c.config, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0600)
 }
 
 func (c *CLI) request(method, path string, body interface{}) (map[string]interface{}, error) {
