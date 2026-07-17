@@ -25,8 +25,8 @@ export default function AuditLogsPage() {
   const fetchLogs = React.useCallback(async () => {
     setLoading(true)
     try {
-      const data = await api.get<ImmutableAuditLog[]>("/audit-logs")
-      setLogs(data)
+      const data = await api.get<{ logs: ImmutableAuditLog[] }>("/audit-logs")
+      setLogs(data.logs ?? [])
     } catch {
       setLogs([])
     } finally {
@@ -39,8 +39,8 @@ export default function AuditLogsPage() {
   const handleVerify = async () => {
     setVerifyResult(null)
     try {
-      const data = await api.get<{ valid: boolean; count: number }>("/audit-logs/verify-chain")
-      setVerifyResult(data)
+      const data = await api.get<{ valid: boolean }>("/audit-logs/verify-chain")
+      setVerifyResult({ valid: data.valid, count: 0 })
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Verification failed")
     }

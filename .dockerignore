@@ -1,0 +1,71 @@
+# Dependencies
+landing/node_modules/
+node_modules/
+vendor/
+
+# Build artifacts
+landing/.next/
+landing/out/
+.next/
+out/
+build/
+dist/
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/api
+/consumer
+cmd/api/api
+cmd/api/main
+cmd/consumer/consumer
+cmd/consumer/main
+
+# Tests & coverage
+*.test
+*.out
+coverage.txt
+coverage.html
+profile.cov
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+deploy/docker/.env
+deploy/docker/.env.prod
+
+# Git & CI
+.git/
+.github/
+.claude/
+.devin/
+
+# Logs & runtime
+*.log
+*.pid
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# Terraform
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.*
+deploy/terraform/*.tfvars
+deploy/terraform/.terraform.lock.hcl
+
+# Docker
+*.local.yml
+deploy/docker/prometheus.yml
+
+README.md

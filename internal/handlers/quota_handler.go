@@ -21,7 +21,7 @@ func NewQuotaHandler(db *gorm.DB) *QuotaHandler {
 }
 
 func (h *QuotaHandler) GetQuota(c *gin.Context) {
-	projectID := c.Param("id")
+	projectID := c.Param("projectId")
 	quota, err := h.svc.GetQuota(projectID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "quota not found"})
@@ -36,7 +36,7 @@ func (h *QuotaHandler) SetQuota(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	quota.ProjectID = c.Param("id")
+	quota.ProjectID = c.Param("projectId")
 	if err := h.svc.SetQuota(&quota); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -45,7 +45,7 @@ func (h *QuotaHandler) SetQuota(c *gin.Context) {
 }
 
 func (h *QuotaHandler) CheckQuota(c *gin.Context) {
-	projectID := c.Param("id")
+	projectID := c.Param("projectId")
 	allowed, err := h.svc.CheckQuota(projectID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

@@ -173,18 +173,20 @@ export function SubmitButton({
 export const Field = React.forwardRef<
   HTMLInputElement,
   React.InputHTMLAttributes<HTMLInputElement> & { label?: string; hint?: string }
->(function Field({ label, hint, className, ...props }, ref) {
+>(function Field({ label, hint, className, children, ...props }, ref) {
   return (
     <label className="flex flex-col gap-2">
       {label && <Label className="tracking-wider">{label}</Label>}
-      <input
-        ref={ref}
-        className={cn(
-          "w-full border-2 border-foreground bg-background px-3 py-2 font-mono text-sm transition-all focus:border-[#ea580c] focus:shadow-[4px_4px_0px_0px_rgba(234,88,12,1)] focus:outline-none",
-          className,
-        )}
-        {...props}
-      />
+      {children ? children : (
+        <input
+          ref={ref}
+          className={cn(
+            "w-full border-2 border-foreground bg-background px-3 py-2 font-mono text-sm transition-all focus:border-[#ea580c] focus:shadow-[4px_4px_0px_0px_rgba(234,88,12,1)] focus:outline-none",
+            className,
+          )}
+          {...props}
+        />
+      )}
       {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
     </label>
   )

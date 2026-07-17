@@ -18,7 +18,7 @@ func NewTenantHandler(db *gorm.DB) *TenantHandler {
 }
 
 func (h *TenantHandler) Create(c *gin.Context) {
-	projectID := c.Param("id")
+	projectID := c.Param("projectId")
 	var tc models.TenantConfig
 	if err := c.ShouldBindJSON(&tc); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -34,13 +34,13 @@ func (h *TenantHandler) Create(c *gin.Context) {
 
 func (h *TenantHandler) List(c *gin.Context) {
 	var configs []models.TenantConfig
-	h.db.Where("project_id = ?", c.Param("id")).Find(&configs)
+	h.db.Where("project_id = ?", c.Param("projectId")).Find(&configs)
 	c.JSON(http.StatusOK, configs)
 }
 
 func (h *TenantHandler) Get(c *gin.Context) {
 	var tc models.TenantConfig
-	if err := h.db.Where("id = ? AND project_id = ?", c.Param("tenantId"), c.Param("id")).First(&tc).Error; err != nil {
+	if err := h.db.Where("id = ? AND project_id = ?", c.Param("tenantId"), c.Param("projectId")).First(&tc).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "tenant not found"})
 		return
 	}
@@ -49,7 +49,7 @@ func (h *TenantHandler) Get(c *gin.Context) {
 
 func (h *TenantHandler) Update(c *gin.Context) {
 	var tc models.TenantConfig
-	if err := h.db.Where("id = ? AND project_id = ?", c.Param("tenantId"), c.Param("id")).First(&tc).Error; err != nil {
+	if err := h.db.Where("id = ? AND project_id = ?", c.Param("tenantId"), c.Param("projectId")).First(&tc).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "tenant not found"})
 		return
 	}
@@ -68,6 +68,6 @@ func (h *TenantHandler) Update(c *gin.Context) {
 }
 
 func (h *TenantHandler) Delete(c *gin.Context) {
-	h.db.Where("id = ? AND project_id = ?", c.Param("tenantId"), c.Param("id")).Delete(&models.TenantConfig{})
+	h.db.Where("id = ? AND project_id = ?", c.Param("tenantId"), c.Param("projectId")).Delete(&models.TenantConfig{})
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }

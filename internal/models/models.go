@@ -308,7 +308,7 @@ type AlertRule struct {
 	Channel string `gorm:"not null;default:email" json:"channel"`
 	// Target: email address or webhook URL, depending on channel.
 	Target      string     `gorm:"not null" json:"target"`
-	IsActive    bool       `gorm:"default:true;not null" json:"is_active"`
+	IsActive    bool       `gorm:"default:true;not null;index" json:"is_active"`
 	LastFiredAt *time.Time `json:"last_fired_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
