@@ -34,12 +34,30 @@ func (h *AnalyticsHandler) GetStats(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
 		return
 	}
-	logs, err := h.analRepo.GetLogs(c.Request.Context(), projectID, 100, 0)
+	logs, err := h.analRepo.GetLogs(c.Request.Context(), projectID, 10000, 0)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"total": len(logs)})
+	allowed, blocked, totalLatency := 0, 0, 0
+	for _, l := range logs {
+		if l.Decision == "allowed" {
+			allowed++
+		} else {
+			blocked++
+		}
+		totalLatency += l.LatencyMs
+	}
+	avgLatency := 0.0
+	if len(logs) > 0 {
+		avgLatency = float64(totalLatency) / float64(len(logs))
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"total_requests":   len(logs),
+		"allowed_requests": allowed,
+		"blocked_requests": blocked,
+		"avg_latency_ms":   avgLatency,
+	})
 }
 
 func (h *AnalyticsHandler) GetLogs(c *gin.Context) {
@@ -85,13 +103,52 @@ func (h *AnalyticsHandler) GetTimeSeries(c *gin.Context) {
 		return
 	}
 	bucket := c.DefaultQuery("bucket", "hour")
-	now := time.Now()
-	data, err := h.analRepo.GetTimeSeries(c.Request.Context(), projectID, now.Add(-24*time.Hour), now, bucket)
+	duration := c.DefaultQuery("duration", "24h")
+	ago := time.Now()
+	switch duration {
+	case "7d":
+		ago = ago.Add(-7 * 24 * time.Hour)
+	case "30d":
+		ago = ago.Add(-30 * 24 * time.Hour)
+	case "all":
+		ago = time.Time{}
+	default:
+		ago = ago.Add(-24 * time.Hour)
+	}
+	rows, err := h.analRepo.GetTimeSeries(c.Request.Context(), projectID, ago, time.Now(), bucket)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, data)
+	type tsPoint struct {
+		Time    string `json:"time"`
+		Allowed int    `json:"allowed"`
+		Blocked int    `json:"blocked"`
+	}
+	buckets := map[string]*tsPoint{}
+	order := []string{}
+	for _, r := range rows {
+		t, _ := r["bucket_time"].(time.Time)
+		key := t.Format(time.RFC3339)
+		pt, ok := buckets[key]
+		if !ok {
+			pt = &tsPoint{Time: key}
+			buckets[key] = pt
+			order = append(order, key)
+		}
+		decision, _ := r["decision"].(string)
+		cnt, _ := r["count"].(int64)
+		if decision == "allowed" {
+			pt.Allowed += int(cnt)
+		} else {
+			pt.Blocked += int(cnt)
+		}
+	}
+	out := make([]tsPoint, 0, len(order))
+	for _, k := range order {
+		out = append(out, *buckets[k])
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 func (h *AnalyticsHandler) GetAnalyticsData(c *gin.Context) {
