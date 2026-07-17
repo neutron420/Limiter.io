@@ -60,6 +60,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const loginWithGoogle = React.useCallback(async () => {
+    const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+    if (!apiKey) {
+      throw new Error("Google Login not configured: set NEXT_PUBLIC_FIREBASE_API_KEY in environment")
+    }
     const { auth: firebaseAuth, googleProvider, signInWithPopup, GoogleAuthProvider } = await import("./firebase")
     const result = await signInWithPopup(firebaseAuth, googleProvider)
     const credential = GoogleAuthProvider.credentialFromResult(result)
