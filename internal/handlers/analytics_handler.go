@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -52,11 +53,34 @@ func (h *AnalyticsHandler) GetStats(c *gin.Context) {
 	if len(logs) > 0 {
 		avgLatency = float64(totalLatency) / float64(len(logs))
 	}
+	// Compute top blocked routes
+	type routeCount struct {
+		Route string `json:"route"`
+		Count int    `json:"count"`
+	}
+	blockedMap := make(map[string]int)
+	for _, l := range logs {
+		if l.Decision == "blocked" {
+			blockedMap[l.Route]++
+		}
+	}
+	blockedList := make([]routeCount, 0, len(blockedMap))
+	for route, count := range blockedMap {
+		blockedList = append(blockedList, routeCount{Route: route, Count: count})
+	}
+	sort.Slice(blockedList, func(i, j int) bool {
+		return blockedList[i].Count > blockedList[j].Count
+	})
+	if len(blockedList) > 10 {
+		blockedList = blockedList[:10]
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"total_requests":   len(logs),
 		"allowed_requests": allowed,
 		"blocked_requests": blocked,
 		"avg_latency_ms":   avgLatency,
+		"top_blocked":      blockedList,
 	})
 }
 
@@ -120,35 +144,7 @@ func (h *AnalyticsHandler) GetTimeSeries(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	type tsPoint struct {
-		Time    string `json:"time"`
-		Allowed int    `json:"allowed"`
-		Blocked int    `json:"blocked"`
-	}
-	buckets := map[string]*tsPoint{}
-	order := []string{}
-	for _, r := range rows {
-		t, _ := r["bucket_time"].(time.Time)
-		key := t.Format(time.RFC3339)
-		pt, ok := buckets[key]
-		if !ok {
-			pt = &tsPoint{Time: key}
-			buckets[key] = pt
-			order = append(order, key)
-		}
-		decision, _ := r["decision"].(string)
-		cnt, _ := r["count"].(int64)
-		if decision == "allowed" {
-			pt.Allowed += int(cnt)
-		} else {
-			pt.Blocked += int(cnt)
-		}
-	}
-	out := make([]tsPoint, 0, len(order))
-	for _, k := range order {
-		out = append(out, *buckets[k])
-	}
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, rows)
 }
 
 func (h *AnalyticsHandler) GetAnalyticsData(c *gin.Context) {

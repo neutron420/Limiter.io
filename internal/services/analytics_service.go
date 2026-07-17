@@ -55,6 +55,9 @@ func (s *AnalyticsDataService) SaveView(view *models.SavedAnalyticsView) error {
 func (s *AnalyticsDataService) ListViews(projectID, userID string) ([]models.SavedAnalyticsView, error) {
 	var views []models.SavedAnalyticsView
 	err := s.db.Where("project_id = ? AND (user_id = ? OR is_shared = ?)", projectID, userID, true).Find(&views).Error
+	if views == nil {
+		views = []models.SavedAnalyticsView{}
+	}
 	return views, err
 }
 

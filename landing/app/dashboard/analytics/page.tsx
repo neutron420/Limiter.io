@@ -107,8 +107,8 @@ export default function AnalyticsPage() {
       setLogs(rawLogs ?? [])
 
       // Fetch saved views
-      const v = await api.get<SavedAnalyticsView[]>(`/projects/${current.id}/analytics/views`).catch(() => [])
-      setViews(v)
+      const v = await api.get<SavedAnalyticsView[]>(`/projects/${current.id}/analytics/views`).catch(() => null)
+      setViews(Array.isArray(v) ? v : [])
 
       // Fetch anomaly config
       const a = await api.get<AnomalyDetectionConfig>(`/projects/${current.id}/analytics/anomaly-config`).catch(() => null)
