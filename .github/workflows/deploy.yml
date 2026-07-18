@@ -34,11 +34,27 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key" \
             ./ ubuntu@${{ secrets.EC2_HOST }}:/opt/limiter/app/
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Build Go binaries
+        run: |
+          CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o api-linux ./cmd/api/main.go
+          CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o consumer-linux ./cmd/consumer/main.go
+          ls -lh api-linux consumer-linux
+
       - name: Write production env file
         run: |
           ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "cat > /opt/limiter/.env.prod" <<'EOF'
           ${{ secrets.PROD_ENV_FILE }}
           EOF
+
+      - name: Copy Go binaries to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key api-linux ubuntu@${{ secrets.EC2_HOST }}:/opt/limiter/app/api
+          scp -i ~/.ssh/deploy_key consumer-linux ubuntu@${{ secrets.EC2_HOST }}:/opt/limiter/app/consumer
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "chmod +x /opt/limiter/app/api /opt/limiter/app/consumer"
 
       - name: Build and restart stack
         run: |
