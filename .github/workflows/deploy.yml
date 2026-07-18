@@ -31,6 +31,8 @@ jobs:
             --exclude '.git' \
             --exclude 'landing/node_modules' \
             --exclude 'landing/.next' \
+            --exclude 'deploy/docker/.env' \
+            --exclude 'deploy/docker/.env.prod' \
             -e "ssh -i ~/.ssh/deploy_key" \
             ./ ubuntu@${{ secrets.EC2_HOST }}:/opt/limiter/app/
 
