@@ -72,8 +72,7 @@ jobs:
           cp /opt/limiter/.env.prod .env.prod
           cp /opt/limiter/.env.prod .env
 
-          # Force full rebuild of landing (Docker cache often misses file changes)
-          docker compose -f docker-compose.prod.yml build --no-cache --pull landing
+          # Fresh cache from previous full rebuild - use normal cached build now
           docker compose -f docker-compose.prod.yml build --pull
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
