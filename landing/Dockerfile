@@ -54,6 +54,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # Next.js telemetry disable
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# t3.micro has 1 GB RAM — cap Node heap so `pnpm build` doesn't OOM
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 RUN pnpm run build
 
 # Production image, copy all the files and run next
