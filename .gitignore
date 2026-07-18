@@ -60,5 +60,8 @@ landing/node_modules/
 landing/.next/
 landing/.env*.local
 
+# ---- Local scripts with secrets ----
+scripts/
+
 # ---- Docker / local infra ----
 *.local.yml

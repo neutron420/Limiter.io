@@ -57,7 +57,7 @@ resource "aws_security_group" "limiter" {
   }
 
   ingress {
-    description = "HTTP (nginx -> landing + api)"
+    description = "HTTP nginx to landing and api"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -65,7 +65,7 @@ resource "aws_security_group" "limiter" {
   }
 
   ingress {
-    description = "HTTPS (when you add a cert)"
+    description = "HTTPS when you add a cert"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
