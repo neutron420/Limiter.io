@@ -99,8 +99,7 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000" # only nginx talks to it
-    depends_on:
-      api:
+
 
 volumes:
   redis_data:
