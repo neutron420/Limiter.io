@@ -1,20 +1,5 @@
 name: limiter-prod
 services:
-  postgres:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?set in .env.prod}
-      POSTGRES_DB: ${DB_NAME:-ratelimiter}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ratelimiter}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -61,10 +46,6 @@ services:
     env_file:
       - ./.env.prod
     environment:
-      # In-cluster endpoints override whatever the env file says.
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_SSLMODE: disable
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_URL: ""
@@ -74,8 +55,6 @@ services:
     ports:
       - "127.0.0.1:8080:8080" # only nginx talks to it
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -95,14 +74,9 @@ services:
     env_file:
       - ./.env.prod
     environment:
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_SSLMODE: disable
       KAFKA_BROKERS: kafka:9092
       ENV: production
     depends_on:
-      postgres:
-        condition: service_healthy
       kafka:
         condition: service_healthy
 
@@ -130,6 +104,5 @@ services:
         condition: service_healthy
 
 volumes:
-  postgres_data:
   redis_data:
   kafka_data:
