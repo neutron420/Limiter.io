@@ -3,8 +3,9 @@
 
 import type { AuthResponse } from "./types"
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8080/api/v1"
+const API_DOMAIN =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8080"
+export const API_BASE = `${API_DOMAIN}/api/v1`
 
 const ACCESS_KEY = "limiter_access_token"
 const REFRESH_KEY = "limiter_refresh_token"
