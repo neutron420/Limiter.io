@@ -15,6 +15,40 @@ type userRepo struct {
 	db *gorm.DB
 }
 
+type ssoRepo struct {
+	db *gorm.DB
+}
+
+func (r *ssoRepo) GetSAMLConfig(ctx context.Context, orgID string) (*models.SAMLConfig, error) {
+	var cfg models.SAMLConfig
+	err := r.db.WithContext(ctx).Where("organization_id = ?", orgID).First(&cfg).Error
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func (r *ssoRepo) SaveSAMLConfig(ctx context.Context, cfg *models.SAMLConfig) error {
+	return r.db.WithContext(ctx).Save(cfg).Error
+}
+
+func (r *ssoRepo) GetOIDCConfig(ctx context.Context, orgID string) (*models.OIDCConfig, error) {
+	var cfg models.OIDCConfig
+	err := r.db.WithContext(ctx).Where("organization_id = ?", orgID).First(&cfg).Error
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func (r *ssoRepo) SaveOIDCConfig(ctx context.Context, cfg *models.OIDCConfig) error {
+	return r.db.WithContext(ctx).Save(cfg).Error
+}
+
+func NewSSORepository(db *gorm.DB) repository.SSORepository {
+	return &ssoRepo{db: db}
+}
+
 func NewUserRepository(db *gorm.DB) repository.UserRepository {
 	return &userRepo{db: db}
 }

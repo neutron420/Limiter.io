@@ -87,6 +87,8 @@ func MigrateAndSeed(db *gorm.DB, cfg *config.Config) error {
 		&models.ApprovalRequest{},
 		&models.Quota{},
 		&models.TenantConfig{},
+		&models.SAMLConfig{},
+		&models.OIDCConfig{},
 		&models.SavedAnalyticsView{},
 		&models.AnomalyDetectionConfig{},
 		&models.Passkey{},

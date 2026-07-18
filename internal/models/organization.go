@@ -62,9 +62,40 @@ type ApprovalRequest struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+type SAMLConfig struct {
+	ID              string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	OrganizationID  string    `gorm:"type:uuid;not null;uniqueIndex" json:"organization_id"`
+	IDPEntityID     string    `gorm:"type:text" json:"idp_entity_id"`
+	IDPSSOURL       string    `gorm:"type:text" json:"idp_sso_url"`
+	IDPSSOBinding   string    `gorm:"type:varchar(50)" json:"idp_sso_binding"`
+	IDPPublicCert   string    `gorm:"type:text" json:"idp_public_cert"`
+	SPEntityID      string    `gorm:"type:text" json:"sp_entity_id"`
+	SPACSURL        string    `gorm:"type:text" json:"sp_acs_url"`
+	SPPrivateKey    string    `gorm:"type:text" json:"sp_private_key"`
+	SPPublicCert    string    `gorm:"type:text" json:"sp_public_cert"`
+	Enabled         bool      `gorm:"default:false" json:"enabled"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type OIDCConfig struct {
+	ID              string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	OrganizationID  string    `gorm:"type:uuid;not null;uniqueIndex" json:"organization_id"`
+	IssuerURL       string    `gorm:"type:text" json:"issuer_url"`
+	ClientID        string    `gorm:"type:text" json:"client_id"`
+	ClientSecret    string    `gorm:"type:text" json:"client_secret"`
+	RedirectURL     string    `gorm:"type:text" json:"redirect_url"`
+	Scopes          string    `gorm:"type:varchar(255)" json:"scopes"`
+	Enabled         bool      `gorm:"default:false" json:"enabled"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
 func (*Organization) TableName() string             { return "organizations" }
 func (*OrganizationMember) TableName() string        { return "organization_members" }
 func (*OrganizationGroup) TableName() string         { return "organization_groups" }
 func (*OrganizationGroupMember) TableName() string   { return "organization_group_members" }
 func (*ApprovalWorkflow) TableName() string          { return "approval_workflows" }
 func (*ApprovalRequest) TableName() string           { return "approval_requests" }
+func (*SAMLConfig) TableName() string                { return "saml_configs" }
+func (*OIDCConfig) TableName() string                { return "oidc_configs" }

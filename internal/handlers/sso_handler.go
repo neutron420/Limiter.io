@@ -12,8 +12,8 @@ type SSOHandler struct {
 	svc *sso.SSOService
 }
 
-func NewSSOHandler() *SSOHandler {
-	return &SSOHandler{svc: sso.NewSSOService()}
+func NewSSOHandler(svc *sso.SSOService) *SSOHandler {
+	return &SSOHandler{svc: svc}
 }
 
 func (h *SSOHandler) SetSAMLConfig(c *gin.Context) {
@@ -22,7 +22,10 @@ func (h *SSOHandler) SetSAMLConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	h.svc.SetSAMLConfig(&cfg)
+	if err := h.svc.SetSAMLConfig(&cfg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "SAML config saved"})
 }
 
@@ -42,7 +45,10 @@ func (h *SSOHandler) SetOIDCConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	h.svc.SetOIDCConfig(&cfg)
+	if err := h.svc.SetOIDCConfig(&cfg); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "OIDC config saved"})
 }
 

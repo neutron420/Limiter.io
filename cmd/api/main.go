@@ -17,6 +17,7 @@ import (
 	"limiter.io/internal/kafka"
 	"limiter.io/internal/mailer"
 	"limiter.io/internal/middleware"
+	"limiter.io/internal/sso"
 	"limiter.io/internal/ratelimiter"
 	internalredis "limiter.io/internal/redis"
 	"limiter.io/internal/repository/postgres"
@@ -195,7 +196,9 @@ func main() {
 	statusHandler := handlers.NewStatusHandler(db, "1.0.0")
 	sandboxHandler := handlers.NewSandboxHandler(db)
 	maintenanceHandler := handlers.NewMaintenanceHandler()
-	ssoHandler := handlers.NewSSOHandler()
+	ssoRepo := postgres.NewSSORepository(db)
+	ssoSvc := sso.NewSSOService(ssoRepo)
+	ssoHandler := handlers.NewSSOHandler(ssoSvc)
 
 	// Start background analytics retention cleanup
 	go func() {

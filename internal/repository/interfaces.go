@@ -124,6 +124,13 @@ type IPAccessRepository interface {
 	Delete(ctx context.Context, projectID, id uuid.UUID) error
 }
 
+type SSORepository interface {
+	GetSAMLConfig(ctx context.Context, orgID string) (*models.SAMLConfig, error)
+	SaveSAMLConfig(ctx context.Context, cfg *models.SAMLConfig) error
+	GetOIDCConfig(ctx context.Context, orgID string) (*models.OIDCConfig, error)
+	SaveOIDCConfig(ctx context.Context, cfg *models.OIDCConfig) error
+}
+
 type CacheRepository interface {
 	GetAPIKey(ctx context.Context, hash string) (*models.APIKey, error)
 	SetAPIKey(ctx context.Context, hash string, apiKey *models.APIKey, ttl time.Duration) error
