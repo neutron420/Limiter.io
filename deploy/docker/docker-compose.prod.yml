@@ -53,6 +53,7 @@ services:
       KAFKA_BROKERS: kafka:9092
       ENV: production
       PORT: "8080"
+      APP_BASE_URL: https://limiter.io
     ports:
       - "127.0.0.1:8080:8080" # only nginx talks to it
     depends_on:
