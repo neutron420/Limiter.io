@@ -25,6 +25,10 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
 
+      - name: Install user SSH key on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} "echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCmJvxoHlaHEpWryVvJIa2j13TMLcyiMXOvNg163K+fXRcP9SKmBV45HGErkBUfcjxpUGxZ1jJHqIfLyaGLxpeLvNhkZ5D7TdT4+D3AKfVDn8fGQMR5Uge1kL29noCCahlz1Awr99iEOU73Moo+8eAceY8F/0p9AkJKqtt5WgQY2KfKqp1XqcKFYkD9ic23CjnB7lY0RU48UUjWU1+1ARcOyHxbTroJiTDLXfeif3Z60aKPuo5e2PJdTioEXLjVmynhmNCklPzF0ddFtBgpxTNiqa3wlJYVN1habO6M0IjTp3szoP5/ZKuI3uSIzU2w7h5iyIrtTIE+DSghqMH4Euew7FnU2qgL1em+ud25uvP0E2vuPmA2E3gBU+W8dhJwkDd83+2kXc24C5sGeGqqC+NaRSRlMycodWUHZbu0cnLJv3u0Zh9bO5MCrm59bKakIoWjICCiy3JVKEgklmkqxdCZ4cBUff7Wc4zWB4cdTqWvLn4Z3iMwsjwOh864Z5wKCLyBcedfNICVMXE6Fgg4vMHh1sEJ3MPEJmsc2im2dnO6IOe67GU/rBlg/92eRyPq4Mfb/9QQpZx9PyR7XsuUNn7IwUVBVqiGtBouiwVOC/VJyzNaKhol1SjS6sM/J/EraQEFM9e3Oi9Of/eP8kmiShCQ/uIpWAyhxXhD5ZUN39y4Uw==' >> ~/.ssh/authorized_keys"
+
       - name: Sync repository to EC2
         run: |
           rsync -az --delete \
