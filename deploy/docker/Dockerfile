@@ -12,11 +12,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build API binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o api cmd/api/main.go
+# Build API binary (GOMAXPROCS=1 to prevent OOM on small instances)
+RUN GOMAXPROCS=1 CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o api cmd/api/main.go
 
 # Build Consumer binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o consumer cmd/consumer/main.go
+RUN GOMAXPROCS=1 CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o consumer cmd/consumer/main.go
 
 # Run stage
 FROM alpine:latest
