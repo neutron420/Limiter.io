@@ -101,7 +101,6 @@ services:
       - "127.0.0.1:3000:3000" # only nginx talks to it
     depends_on:
       api:
-        condition: service_healthy
 
 volumes:
   redis_data:
