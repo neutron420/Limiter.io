@@ -78,7 +78,7 @@ jobs:
       - name: Health check
         run: |
           echo "Waiting for API to become healthy..."
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ secrets.EC2_HOST }}:8080/healthz" || true)
             if [ "$code" = "200" ]; then
               echo "API healthy (attempt $i)"
