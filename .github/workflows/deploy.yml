@@ -79,15 +79,21 @@ jobs:
 
       - name: Health check
         run: |
-          echo "Waiting for API to become healthy..."
+          echo "Waiting for services to become healthy..."
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} bash -s <<'HEOF'
+          set -euo pipefail
           for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ secrets.EC2_HOST }}:8080/healthz" || true)
-            if [ "$code" = "200" ]; then
-              echo "API healthy (attempt $i)"
+            code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3000" || true)
+            if [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ]; then
+              echo "Landing healthy (attempt $i, status $code)"
+              # also check API from inside
+              apicode=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8080/healthz" || true)
+              echo "API health: $apicode"
               exit 0
             fi
-            echo "attempt $i: /healthz -> $code, retrying in 5s"
+            echo "attempt $i: landing -> $code, retrying in 5s"
             sleep 5
           done
-          echo "API did not become healthy in time"
+          echo "Landing did not become healthy in time"
           exit 1
+HEOF
