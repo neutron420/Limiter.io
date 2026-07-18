@@ -16,6 +16,7 @@ services:
     image: apache/kafka:3.7.0
     restart: unless-stopped
     environment:
+      - KAFKA_HEAP_OPTS=-Xms256m -Xmx256m
       - KAFKA_NODE_ID=1
       - KAFKA_PROCESS_ROLES=broker,controller
       - KAFKA_LISTENERS=INTERNAL://:9092,CONTROLLER://:9093
